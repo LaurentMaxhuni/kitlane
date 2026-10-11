@@ -16,6 +16,7 @@ fn main() -> eframe::Result {
         "Kitlane",
         options,
         Box::new(|cc| {
+            egui_extras::install_image_loaders(&cc.egui_ctx);
             theme::install_fonts(&cc.egui_ctx);
             theme::apply(&cc.egui_ctx, false);
             Ok(Box::new(shell::KitlaneApp::new(cc.egui_ctx.clone())))
