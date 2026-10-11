@@ -24,9 +24,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             ("info_text", "infoText"),
             ("info_bg", "infoBg"),
             ("success_text", "successText"),
-            ("success_bg", "successBg"),
             ("warning_text", "warningText"),
-            ("warning_bg", "warningBg"),
             ("danger_text", "dangerText"),
             ("danger_bg", "dangerBg"),
         ] {

@@ -18,9 +18,7 @@ pub struct Palette {
     pub info_text: Color32,
     pub info_bg: Color32,
     pub success_text: Color32,
-    pub success_bg: Color32,
     pub warning_text: Color32,
-    pub warning_bg: Color32,
     pub danger_text: Color32,
     pub danger_bg: Color32,
 }
@@ -153,12 +151,8 @@ pub enum Icon {
     Copy,
     Monitor,
     Shield,
-    Info,
-    Plus,
     Sun,
     Moon,
-    ArrowRight,
-    Check,
     Alert,
 }
 
@@ -197,12 +191,8 @@ pub fn icon_image(kind: Icon, size: f32, color: Color32) -> egui::Image<'static>
         Icon::Copy => asset!("copy"),
         Icon::Monitor => asset!("monitor"),
         Icon::Shield => asset!("shield-check"),
-        Icon::Info => asset!("info"),
-        Icon::Plus => asset!("plus"),
         Icon::Sun => asset!("sun"),
         Icon::Moon => asset!("moon"),
-        Icon::ArrowRight => asset!("arrow-right"),
-        Icon::Check => asset!("check"),
         Icon::Alert => asset!("circle-alert"),
     };
     egui::Image::from_bytes(uri, bytes)
