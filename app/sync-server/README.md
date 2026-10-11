@@ -27,7 +27,8 @@ All bodies/responses use JSON with snake_case fields. Unknown request fields are
 | Endpoint | Credential | Request | Success |
 | --- | --- | --- | --- |
 | `POST /v1/pairing-grants` | Owner only | `{"device": DeviceInfo}` | 200 `{"pairing_token": string, "expires_at_unix_secs": integer, "device": DeviceInfo}` |
-| `POST /v1/enroll` | Single-use grant in body | `{"pairing_token": string}` | 201 `{"device_token": string, "device": DeviceInfo}` |
+| `POST /v1/devices/{id}/pairing-grants` | Owner only | Empty/no body | 200 same pairing-grant response; recover an active device credential |
+| `POST /v1/enroll` | Single-use initial/recovery grant in body | `{"pairing_token": string}` | 201 `{"device_token": string, "device": DeviceInfo}` |
 | `GET /v1/devices` | Owner or active device | None | 200 array of `{"device": DeviceInfo, "revision": integer}` |
 | `DELETE /v1/devices/{id}` | Owner only | None | 204; revoke token, remove current snapshot, omit device from roster |
 | `PUT /v1/snapshots/{id}` | That active device only | `{"revision": integer, "snapshot": InventorySnapshot}` | 204 |
@@ -47,6 +48,10 @@ All bodies/responses use JSON with snake_case fields. Unknown request fields are
 ```
 
 Pairing grants contain 256 bits of OS randomness, expire after 300 seconds, and enroll exactly once even under concurrent requests. An enrolled device token also contains 256 random bits; only its SHA-256 hash is persisted. Hash comparisons use `subtle` constant-time equality. Grants, device credentials, tombstones, revisions, and snapshots persist transactionally in redb. The owner must transfer the one-time grant through a trusted channel; there is no short numeric pairing code or unauthenticated grant issuance. A grant holder is authorized to enroll the identity fixed by that grant.
+
+An active enrolled device can recover a lost token or failed credential-store write through owner-authorized `POST /v1/devices/{id}/pairing-grants` with an empty body. The owner must explicitly authorize and securely deliver this grant to the intended device; the desktop never receives owner credentials. Recovery uses the existing enrolled metadata, not caller-supplied identity fields. Grant issuance leaves the old token valid. Exchanging the grant through `/v1/enroll` returns 201 with a new device token and atomically invalidates the old token, retaining UUID, name, platform, architecture, current snapshot, and revision. A lost enrollment response can be recovered by requesting another owner-issued recovery grant for the same UUID.
+
+Recovery grants pin the current credential hash when issued. Multiple grants issued for the same credential generation may coexist; once one rotates the credential, another cannot supersede it. Stale recovery grants return 409 and are consumed atomically; another use returns 401. Revocation between issuance and enrollment also rejects and consumes the grant, and revoked IDs cannot obtain recovery grants. Expired grants return 401 and do not rotate credentials. The original `/v1/pairing-grants` still returns 409 for any already enrolled ID. Existing persisted schema-1 grants without the new rotation fields default to initial enrollment; no migration or credential reset occurs.
 
 Devices share one owner's roster and snapshots. This access is explicit: any enrolled device can read inventories of every other active device under this owner. No tenant/account distinction exists. Owner credentials cannot write snapshots; device credentials cannot issue grants or revoke devices. Revocation permanently tombstones the ID, so later pairing cannot restore the old credential/identity. Revoked snapshots are logically deleted; backups or database free pages may retain old data. Storage is not encrypted or end-to-end encrypted, and the service owner can read inventories.
 
@@ -69,7 +74,7 @@ First snapshot uses revision 1. Every subsequent write must use exactly the stor
 }
 ```
 
-Domain errors return `{"error": "fixed message"}`; JSON extraction errors use axum's standard rejection body. Status meanings: 400 validation; 401 missing/bad/expired/revoked credentials; 403 wrong credential role or cross-device write; 404 absent snapshot/device; 409 revision/identity/capacity conflict; 413 oversized JSON body; 422 malformed JSON schema; 503 concurrent request capacity; 500 storage/entropy failure. A conflicting enrollment does not consume its grant, but cannot overwrite an existing identity. No plaintext token is stored or logged by this service.
+Domain errors return `{"error": "fixed message"}`; JSON extraction errors use axum's standard rejection body. Status meanings: 400 validation; 401 missing/bad/expired/revoked credentials; 403 wrong credential role or cross-device write; 404 absent snapshot/device; 409 revision/identity/capacity conflict; 413 oversized JSON body; 422 malformed JSON schema; 503 concurrent request capacity; 500 storage/entropy failure. A conflicting initial enrollment does not consume its grant, but cannot overwrite an existing identity. Stale or revoked credential-recovery grants are consumed on their 409 response. No plaintext token is stored or logged by this service.
 
 JSON bodies are limited to 2 MiB; shared validation also caps 10,000 apps and 64 warnings, checks text sizes/control characters and duplicate app IDs. At most 64 device identities (including revocation tombstones), 64 pending grants, 16 concurrent requests, and 16 running/queued blocking database operations are allowed. Blocking-work permits remain owned by database tasks even if their HTTP caller disconnects. Expired grants are pruned when owner requests another grant. Active snapshots have one retained logical version per device. There is no production network rate limiter, connection/read deadline, audit trail, hardware-backed secret storage, owner rotation, or tenant isolation. Grants require a reliable system clock; enrollment rejects timestamps before grant issuance as well as expired grants.
 
@@ -77,7 +82,7 @@ JSON bodies are limited to 2 MiB; shared validation also caps 10,000 apps and 64
 
 1. Obtain explicit owner consent and configured service transport. Keep local inventory local by default.
 2. Pair using the desktop's persisted canonical UUID and shown device metadata. Present the single-owner read-sharing policy before enrollment.
-3. Exchange the grant exactly once. Put the returned device token in an OS credential store; never fall back to plaintext disk or ship owner credentials.
+3. Exchange the grant exactly once. Put the returned device token in an OS credential store; never fall back to plaintext disk or ship owner credentials. If the response is lost or secure storage fails after enrollment, retain the local UUID and request an owner-issued recovery grant through `/v1/devices/{id}/pairing-grants`; exchange that grant to rotate credentials and retry secure storage. A revoked ID cannot recover.
 4. Read roster revision, then submit a validated local snapshot with the next revision. On ambiguous timeout, read current server state before choosing a revision; do not blindly replay writes.
 5. Treat 401 as revoked/expired enrollment requiring user action. Apply bounded retries/backoff to 503/offline failures, and refresh revision on 409. Never interpret synced inventory as executable commands.
 
@@ -90,6 +95,6 @@ cargo test --manifest-path sync-server/Cargo.toml
 cargo clippy --manifest-path sync-server/Cargo.toml --all-targets -- -D warnings
 ```
 
-Tests cover unauthenticated/bad tokens, owner/device authorization, concurrent grant reuse and expiry, revocation, cross-device writes, metadata and canonical ID validation, oversized bodies, stale/skipped revisions, pending/concurrent request bounds, canceled-caller blocking-work bounds, restart persistence, owner pinning, unrelated/schema-less file preservation, abandoned initialization retry, and exclusive publication preservation. This is functional validation, not a completed security audit.
+Tests cover unauthenticated/bad tokens, owner/device authorization, concurrent grant reuse and expiry, revocation, cross-device writes, metadata and canonical ID validation, oversized bodies, stale/skipped revisions, pending/concurrent request bounds, canceled-caller blocking-work bounds, restart persistence, owner pinning, unrelated/schema-less file preservation, abandoned initialization retry, and exclusive publication preservation, owner-only recovery, retained identity/snapshot/revision, old-token invalidation, recovery races/revocation, and backward-compatible persisted grants. This is functional validation, not a completed security audit.
 
 Implementation uses current primary references: [axum router](https://docs.rs/axum/0.8.9/axum/routing/struct.Router.html), [body limits](https://docs.rs/axum/0.8.9/axum/extract/struct.DefaultBodyLimit.html), [redb transactions](https://docs.rs/redb/4.3.0/redb/), [OS randomness](https://docs.rs/rand_core/0.9.5/rand_core/struct.OsRng.html), [SHA-256](https://docs.rs/sha2/0.10.9/sha2/), [constant-time equality](https://docs.rs/subtle/2.6.1/subtle/trait.ConstantTimeEq.html).

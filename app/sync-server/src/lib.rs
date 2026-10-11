@@ -1,5 +1,6 @@
 use axum::{
     Json, Router,
+    body::Bytes,
     extract::{DefaultBodyLimit, Path, Request, State},
     http::{HeaderMap, HeaderValue, StatusCode, header},
     middleware::{self, Next},
@@ -50,6 +51,10 @@ struct Grant {
     token_hash: [u8; 32],
     issued_at: u64,
     expires_at: u64,
+    #[serde(default)]
+    rotate_credential: bool,
+    #[serde(default)]
+    previous_token_hash: Option<[u8; 32]>,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -323,6 +328,7 @@ pub fn router(service: Service) -> Router {
         .route("/v1/pairing-grants", post(pair))
         .route("/v1/devices", get(roster))
         .route("/v1/devices/{id}", delete(revoke))
+        .route("/v1/devices/{id}/pairing-grants", post(recovery_pair))
         .route("/v1/snapshots/{id}", get(read_snapshot).put(write_snapshot))
         .route_layer(middleware::from_fn_with_state(service.clone(), auth_guard));
     Router::new()
@@ -389,41 +395,79 @@ async fn pair(
             if devices.iter().map_err(internal)?.count() >= MAX_DEVICES {
                 return Err(conflict("Device capacity reached"));
             }
-            let timestamp = now()?;
-            let mut grants = tx.open_table(GRANTS).map_err(internal)?;
-            // Expired grants are removed without ever storing their cleartext credentials.
-            let mut expired = Vec::new();
-            for item in grants.iter().map_err(internal)? {
-                let (key, value) = item.map_err(internal)?;
-                let grant: Grant = decode(value.value())?;
-                if grant.expires_at <= timestamp || timestamp < grant.issued_at {
-                    expired.push(key.value().to_owned());
-                }
-            }
-            for key in expired {
-                grants.remove(key.as_str()).map_err(internal)?;
-            }
-            if grants.iter().map_err(internal)?.count() >= MAX_GRANTS {
-                return Err(conflict("Pairing capacity reached"));
-            }
-            let token = random_token()?;
-            let hash = token_hash(&token)?;
-            let grant = Grant {
-                device: request.device.clone(),
-                token_hash: hash,
-                issued_at: timestamp,
-                expires_at: timestamp + GRANT_LIFETIME_SECS,
-            };
-            grants
-                .insert(hex::encode(hash).as_str(), encode(&grant)?.as_slice())
-                .map_err(internal)?;
-            Ok(Json(PairingResponse {
-                pairing_token: token,
-                expires_at_unix_secs: grant.expires_at,
-                device: request.device,
-            }))
+            issue_grant(tx, request.device, None)
         })
         .await
+}
+
+async fn recovery_pair(
+    State(service): State<Service>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    body: Bytes,
+) -> Result<Json<PairingResponse>, ApiError> {
+    let hash = bearer(&headers)?;
+    service
+        .transaction(move |tx| {
+            require_owner(tx, &hash)?;
+            if !body.is_empty() {
+                return Err(bad("Recovery pairing requires an empty body"));
+            }
+            let devices = tx.open_table(DEVICES).map_err(internal)?;
+            let record: DeviceRecord = devices
+                .get(id.as_str())
+                .map_err(internal)?
+                .map(|value| decode(value.value()))
+                .transpose()?
+                .ok_or(ApiError(StatusCode::NOT_FOUND, "Device not found"))?;
+            if record.revoked {
+                return Err(conflict("Revoked device cannot recover credentials"));
+            }
+            issue_grant(tx, record.device, Some(record.token_hash))
+        })
+        .await
+}
+
+fn issue_grant(
+    tx: &WriteTransaction,
+    device: DeviceInfo,
+    previous_token_hash: Option<[u8; 32]>,
+) -> Result<Json<PairingResponse>, ApiError> {
+    let timestamp = now()?;
+    let mut grants = tx.open_table(GRANTS).map_err(internal)?;
+    // Expired grants are removed without ever storing their cleartext credentials.
+    let mut expired = Vec::new();
+    for item in grants.iter().map_err(internal)? {
+        let (key, value) = item.map_err(internal)?;
+        let grant: Grant = decode(value.value())?;
+        if grant.expires_at <= timestamp || timestamp < grant.issued_at {
+            expired.push(key.value().to_owned());
+        }
+    }
+    for key in expired {
+        grants.remove(key.as_str()).map_err(internal)?;
+    }
+    if grants.iter().map_err(internal)?.count() >= MAX_GRANTS {
+        return Err(conflict("Pairing capacity reached"));
+    }
+    let token = random_token()?;
+    let hash = token_hash(&token)?;
+    let grant = Grant {
+        device: device.clone(),
+        token_hash: hash,
+        issued_at: timestamp,
+        expires_at: timestamp + GRANT_LIFETIME_SECS,
+        rotate_credential: previous_token_hash.is_some(),
+        previous_token_hash,
+    };
+    grants
+        .insert(hex::encode(hash).as_str(), encode(&grant)?.as_slice())
+        .map_err(internal)?;
+    Ok(Json(PairingResponse {
+        pairing_token: token,
+        expires_at_unix_secs: grant.expires_at,
+        device,
+    }))
 }
 async fn enroll(
     State(service): State<Service>,
@@ -447,36 +491,59 @@ async fn enroll(
             }
             let (key, grant) = matched.ok_or_else(unauthorized)?;
             let mut devices = tx.open_table(DEVICES).map_err(internal)?;
-            if devices
+            let existing: Option<DeviceRecord> = devices
                 .get(grant.device.id.as_str())
                 .map_err(internal)?
-                .is_some()
-            {
-                return Err(conflict("Device identity already enrolled"));
-            }
-            if devices.iter().map_err(internal)?.count() >= MAX_DEVICES {
-                return Err(conflict("Device capacity reached"));
-            }
-            let token = random_token()?;
-            let record = DeviceRecord {
-                device: grant.device.clone(),
-                token_hash: token_hash(&token)?,
-                revoked: false,
-                revision: 0,
+                .map(|value| decode(value.value()))
+                .transpose()?;
+            let mut record = if grant.rotate_credential {
+                match existing {
+                    Some(record)
+                        if !record.revoked
+                            && record.device == grant.device
+                            && grant.previous_token_hash.is_some_and(|previous| {
+                                bool::from(previous.ct_eq(&record.token_hash))
+                            }) =>
+                    {
+                        record
+                    }
+                    _ => {
+                        // Stale/revoked recovery grants are consumed and rejected in the same commit.
+                        grants.remove(key.as_str()).map_err(internal)?;
+                        return Ok(Err(conflict(
+                            "Recovery grant no longer matches active device credential",
+                        )));
+                    }
+                }
+            } else {
+                if existing.is_some() {
+                    return Err(conflict("Device identity already enrolled"));
+                }
+                if devices.iter().map_err(internal)?.count() >= MAX_DEVICES {
+                    return Err(conflict("Device capacity reached"));
+                }
+                DeviceRecord {
+                    device: grant.device.clone(),
+                    token_hash: [0; 32],
+                    revoked: false,
+                    revision: 0,
+                }
             };
+            let token = random_token()?;
+            record.token_hash = token_hash(&token)?;
             devices
                 .insert(grant.device.id.as_str(), encode(&record)?.as_slice())
                 .map_err(internal)?;
             grants.remove(key.as_str()).map_err(internal)?;
-            Ok((
+            Ok(Ok((
                 StatusCode::CREATED,
                 Json(EnrollmentResponse {
                     device_token: token,
                     device: grant.device,
                 }),
-            ))
+            )))
         })
-        .await
+        .await?
 }
 async fn roster(
     State(service): State<Service>,

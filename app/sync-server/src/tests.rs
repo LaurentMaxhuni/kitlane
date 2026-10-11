@@ -546,3 +546,398 @@ async fn canceled_caller_cannot_release_running_database_work_capacity() {
     release_tx.send(()).unwrap();
     assert_eq!(result.unwrap_err().0, StatusCode::SERVICE_UNAVAILABLE);
 }
+
+async fn recovery_grant(service: &Service, device: &DeviceInfo) -> String {
+    let path = format!("/v1/devices/{}/pairing-grants", device.id);
+    let (status, response) = raw_request(
+        router(service.clone()),
+        "POST",
+        &path,
+        Some(OWNER),
+        String::new(),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(response["device"], json!(device));
+    response["pairing_token"].as_str().unwrap().to_owned()
+}
+
+#[tokio::test]
+async fn recovery_rotates_credentials_preserves_state_and_recovers_lost_response() {
+    let (dir, service) = fixture();
+    let mut d = device(1);
+    d.name = "Unchanged owner-approved metadata".into();
+    let old_token = enroll_device(&service, &d).await;
+    let path = format!("/v1/snapshots/{}", d.id);
+    assert_eq!(
+        request(&service, "PUT", &path, Some(&old_token), update(&d, 1))
+            .await
+            .0,
+        StatusCode::NO_CONTENT
+    );
+    let initial_snapshot = request(&service, "GET", &path, Some(OWNER), Value::Null)
+        .await
+        .1;
+    let pairing = recovery_grant(&service, &d).await;
+    // Issuing a grant alone does not invalidate the installed credential.
+    assert_eq!(
+        request(
+            &service,
+            "GET",
+            "/v1/devices",
+            Some(&old_token),
+            Value::Null
+        )
+        .await
+        .0,
+        StatusCode::OK
+    );
+    let (status, response) = request(
+        &service,
+        "POST",
+        "/v1/enroll",
+        None,
+        json!({"pairing_token":pairing}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    assert_eq!(response["device"], json!(d));
+    let new_token = response["device_token"].as_str().unwrap().to_owned();
+    assert_eq!(
+        request(
+            &service,
+            "GET",
+            "/v1/devices",
+            Some(&old_token),
+            Value::Null
+        )
+        .await
+        .0,
+        StatusCode::UNAUTHORIZED
+    );
+    assert_eq!(
+        request(&service, "GET", &path, Some(&new_token), Value::Null)
+            .await
+            .1,
+        initial_snapshot
+    );
+    assert_eq!(
+        request(
+            &service,
+            "GET",
+            "/v1/devices",
+            Some(&new_token),
+            Value::Null
+        )
+        .await
+        .1[0]["revision"],
+        1
+    );
+    assert_eq!(
+        request(&service, "PUT", &path, Some(&new_token), update(&d, 2))
+            .await
+            .0,
+        StatusCode::NO_CONTENT
+    );
+    let fresh = recovery_grant(&service, &d).await;
+    drop(service);
+    let service = Service::open(dir.path().join("service.redb"), OWNER).unwrap();
+    assert_eq!(
+        request(
+            &service,
+            "POST",
+            "/v1/enroll",
+            None,
+            json!({"pairing_token":pairing})
+        )
+        .await
+        .0,
+        StatusCode::UNAUTHORIZED
+    );
+    assert_eq!(
+        request(&service, "GET", &path, Some(&new_token), Value::Null)
+            .await
+            .1["revision"],
+        2
+    );
+    // Even if the previous enrollment response was lost or secure storage failed,
+    // the owner can issue a fresh recovery grant for the same stable identity.
+    let (status, response) = request(
+        &service,
+        "POST",
+        "/v1/enroll",
+        None,
+        json!({"pairing_token":fresh}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let recovered_token = response["device_token"].as_str().unwrap();
+    assert_eq!(
+        request(
+            &service,
+            "GET",
+            "/v1/devices",
+            Some(&new_token),
+            Value::Null
+        )
+        .await
+        .0,
+        StatusCode::UNAUTHORIZED
+    );
+    assert_eq!(
+        request(&service, "GET", &path, Some(recovered_token), Value::Null)
+            .await
+            .1["revision"],
+        2
+    );
+}
+
+#[tokio::test]
+async fn recovery_is_owner_only_and_revocation_invalidates_pending_grants() {
+    let (_dir, service) = fixture();
+    let d = device(1);
+    let old_token = enroll_device(&service, &d).await;
+    let path = format!("/v1/devices/{}/pairing-grants", d.id);
+    for token in [None, Some(OTHER)] {
+        assert_eq!(
+            raw_request(router(service.clone()), "POST", &path, token, String::new())
+                .await
+                .0,
+            StatusCode::UNAUTHORIZED
+        );
+    }
+    assert_eq!(
+        raw_request(
+            router(service.clone()),
+            "POST",
+            &path,
+            Some(&old_token),
+            String::new()
+        )
+        .await
+        .0,
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        raw_request(
+            router(service.clone()),
+            "POST",
+            &path,
+            Some(OWNER),
+            "{}".into()
+        )
+        .await
+        .0,
+        StatusCode::BAD_REQUEST
+    );
+    let missing = format!("/v1/devices/{}/pairing-grants", device(2).id);
+    assert_eq!(
+        raw_request(
+            router(service.clone()),
+            "POST",
+            &missing,
+            Some(OWNER),
+            String::new()
+        )
+        .await
+        .0,
+        StatusCode::NOT_FOUND
+    );
+    let pairing = recovery_grant(&service, &d).await;
+    assert_eq!(
+        request(
+            &service,
+            "DELETE",
+            &format!("/v1/devices/{}", d.id),
+            Some(OWNER),
+            Value::Null
+        )
+        .await
+        .0,
+        StatusCode::NO_CONTENT
+    );
+    assert_eq!(
+        request(
+            &service,
+            "POST",
+            "/v1/enroll",
+            None,
+            json!({"pairing_token":pairing})
+        )
+        .await
+        .0,
+        StatusCode::CONFLICT
+    );
+    assert_eq!(
+        request(
+            &service,
+            "POST",
+            "/v1/enroll",
+            None,
+            json!({"pairing_token":pairing})
+        )
+        .await
+        .0,
+        StatusCode::UNAUTHORIZED
+    );
+    assert_eq!(
+        raw_request(
+            router(service.clone()),
+            "POST",
+            &path,
+            Some(OWNER),
+            String::new()
+        )
+        .await
+        .0,
+        StatusCode::CONFLICT
+    );
+    assert_eq!(
+        request(
+            &service,
+            "POST",
+            "/v1/pairing-grants",
+            Some(OWNER),
+            json!({"device":d})
+        )
+        .await
+        .0,
+        StatusCode::CONFLICT
+    );
+    assert_eq!(
+        request(
+            &service,
+            "GET",
+            "/v1/devices",
+            Some(&old_token),
+            Value::Null
+        )
+        .await
+        .0,
+        StatusCode::UNAUTHORIZED
+    );
+}
+
+#[tokio::test]
+async fn concurrent_recovery_grants_cannot_overwrite_a_newer_credential_generation() {
+    let (_dir, service) = fixture();
+    let d = device(1);
+    let old_token = enroll_device(&service, &d).await;
+    let (a, b) = tokio::join!(recovery_grant(&service, &d), recovery_grant(&service, &d));
+    let (result_a, result_b) = tokio::join!(
+        request(
+            &service,
+            "POST",
+            "/v1/enroll",
+            None,
+            json!({"pairing_token":a})
+        ),
+        request(
+            &service,
+            "POST",
+            "/v1/enroll",
+            None,
+            json!({"pairing_token":b})
+        )
+    );
+    let mut statuses = [result_a.0.as_u16(), result_b.0.as_u16()];
+    statuses.sort();
+    assert_eq!(statuses, [201, 409]);
+    let winner = if result_a.0 == StatusCode::CREATED {
+        result_a.1
+    } else {
+        result_b.1
+    };
+    assert_eq!(
+        request(
+            &service,
+            "GET",
+            "/v1/devices",
+            Some(winner["device_token"].as_str().unwrap()),
+            Value::Null
+        )
+        .await
+        .0,
+        StatusCode::OK
+    );
+    assert_eq!(
+        request(
+            &service,
+            "GET",
+            "/v1/devices",
+            Some(&old_token),
+            Value::Null
+        )
+        .await
+        .0,
+        StatusCode::UNAUTHORIZED
+    );
+    for token in [a, b] {
+        assert_eq!(
+            request(
+                &service,
+                "POST",
+                "/v1/enroll",
+                None,
+                json!({"pairing_token":token})
+            )
+            .await
+            .0,
+            StatusCode::UNAUTHORIZED
+        );
+    }
+}
+
+#[tokio::test]
+async fn older_persisted_pairing_grants_default_to_initial_enrollment() {
+    let (dir, service) = fixture();
+    let d = device(1);
+    let pairing = grant(&service, &d).await;
+    let key = hex::encode(token_hash(&pairing).unwrap());
+    service
+        .transaction(move |tx| {
+            let mut grants = tx.open_table(GRANTS).map_err(internal)?;
+            let mut original: Value =
+                decode(grants.get(key.as_str()).map_err(internal)?.unwrap().value())?;
+            original
+                .as_object_mut()
+                .unwrap()
+                .remove("rotate_credential");
+            original
+                .as_object_mut()
+                .unwrap()
+                .remove("previous_token_hash");
+            grants
+                .insert(key.as_str(), encode(&original)?.as_slice())
+                .map_err(internal)?;
+            Ok(())
+        })
+        .await
+        .unwrap();
+    drop(service);
+    let service = Service::open(dir.path().join("service.redb"), OWNER).unwrap();
+    assert_eq!(
+        request(
+            &service,
+            "POST",
+            "/v1/enroll",
+            None,
+            json!({"pairing_token":pairing})
+        )
+        .await
+        .0,
+        StatusCode::CREATED
+    );
+    assert_eq!(
+        request(
+            &service,
+            "POST",
+            "/v1/pairing-grants",
+            Some(OWNER),
+            json!({"device":d})
+        )
+        .await
+        .0,
+        StatusCode::CONFLICT
+    );
+}
