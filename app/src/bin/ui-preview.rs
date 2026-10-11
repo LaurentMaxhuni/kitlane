@@ -1,11 +1,13 @@
 #[cfg(debug_assertions)]
 #[path = "../shell.rs"]
+#[allow(dead_code)] // Fixture rendering deliberately never starts the worker.
 mod shell;
 #[cfg(debug_assertions)]
 #[path = "../theme.rs"]
 mod theme;
 #[cfg(debug_assertions)]
 #[path = "../worker.rs"]
+#[allow(dead_code)] // Share command types without invoking storage, vault, or networking.
 mod worker;
 
 #[cfg(debug_assertions)]
