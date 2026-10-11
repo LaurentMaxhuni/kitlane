@@ -64,6 +64,75 @@ pub struct KitlaneApp {
 }
 
 impl KitlaneApp {
+    #[cfg(debug_assertions)]
+    #[allow(dead_code)] // Used only by the diagnostic preview binary.
+    pub(crate) fn preview(page: usize, dark: bool, state: &str) -> Self {
+        use kitlane_core::model::{InstallScope, InstalledApp, InventorySource};
+        let device = DeviceInfo {
+            id: kitlane_core::new_device_id(),
+            name: "Studio workstation".into(),
+            platform: Platform::Windows,
+            architecture: "x86_64".into(),
+        };
+        let mut app = Self {
+            page: match page {
+                1 => Page::Devices,
+                2 => Page::Settings,
+                _ => Page::Library,
+            },
+            dark,
+            device: Some(device.clone()),
+            ..Self::default()
+        };
+        let mut apps: Vec<_> = [
+            (
+                "Microsoft Visual Studio Code (User)",
+                "Microsoft Corporation",
+                "1.105.0",
+            ),
+            ("VLC media player", "VideoLAN", "3.0.21"),
+            ("Notepad++ (64-bit x64)", "Notepad++ Team", "8.8.5"),
+            ("Figma", "Figma, Inc.", "124.0"),
+            ("Spotify", "Spotify AB", "1.2.73"),
+            ("Blender", "Blender Foundation", "4.5.0"),
+            ("Obsidian", "Dynalist Inc.", "1.9.12"),
+        ]
+        .into_iter()
+        .enumerate()
+        .map(|(i, (name, publisher, version))| InstalledApp {
+            id: format!("preview-{i}"),
+            name: name.into(),
+            publisher: Some(publisher.into()),
+            version: Some(version.into()),
+            scope: InstallScope::User,
+            source: InventorySource::WindowsRegistry,
+            native_id: None,
+            origin: None,
+        })
+        .collect();
+        if state == "empty" {
+            apps.clear();
+        }
+        if state == "long" {
+            apps[0].name = "A very long application name ".repeat(15);
+            apps[0].publisher = Some("An unusually long publisher name ".repeat(15));
+            apps[0].version = Some("2026.10.11.long-version".repeat(5));
+        }
+        app.set_snapshot(InventorySnapshot {
+            device,
+            scanned_at_unix_secs: 1,
+            apps,
+            warnings: Vec::new(),
+        });
+        if state == "loading" {
+            app.scanning = true;
+        }
+        if state == "error" {
+            app.error = Some("Inventory scan failed. Your saved library is still available. Try refreshing again.".into());
+        }
+        app
+    }
+
     pub fn new(ctx: egui::Context) -> Self {
         let worker = worker::start(ctx);
         let mut app = Self {
