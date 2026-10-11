@@ -1,0 +1,36 @@
+[package]
+name = "kitlane-sync-client"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.95"
+publish = false
+
+[dependencies]
+kitlane-core = { path = "../core" }
+reqwest = { version = "0.13", default-features = false, features = ["blocking"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+zeroize = "1"
+
+[target.'cfg(windows)'.dependencies]
+keyring = { version = "3.6.3", default-features = false, features = ["windows-native"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+keyring = { version = "3.6.3", default-features = false, features = ["apple-native"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+keyring = { version = "3.6.3", default-features = false, features = ["linux-native-sync-persistent", "crypto-rust"] }
+
+[dev-dependencies]
+kitlane-sync-server = { path = "../sync-server" }
+axum = "0.8"
+tokio = { version = "1", features = ["rt-multi-thread", "net", "sync"] }
+tempfile = "3"
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[workspace]
+
+
