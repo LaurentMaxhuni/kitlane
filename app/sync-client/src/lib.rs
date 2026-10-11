@@ -30,6 +30,7 @@ pub enum Error {
     AlreadyEnrolled,
     VaultUnavailable,
     EnrollmentVaultFailed,
+    EnrollmentRejected,
     EnrollmentUncertain,
     Unauthorized,
     Forbidden,
@@ -48,6 +49,7 @@ impl fmt::Display for Error {
             Self::NotEnrolled => "Enroll this device before syncing.",
             Self::AlreadyEnrolled => "A credential already exists. Forget it explicitly before enrolling again.",
             Self::VaultUnavailable => "OS credential store is unavailable. Unlock or restore it and try again.",
+            Self::EnrollmentRejected => "Pairing grant does not match this device. Ask the owner for a grant matching the shown device metadata.",
             Self::EnrollmentVaultFailed => "Enrollment succeeded, but OS credential storage failed. The grant was consumed. Ask the owner for a recovery pairing grant for this device, then enroll explicitly.",
             Self::EnrollmentUncertain => "Enrollment could not be confirmed. Do not retry this grant automatically. Ask the owner to check the enrollment and issue a recovery pairing grant for this device if needed.",
             Self::Unauthorized => "Credential or pairing grant was rejected. Ask the owner to check revocation or expiry; enrollment requires user action.",
@@ -234,8 +236,10 @@ impl Client {
             return Err(Error::InvalidPairingToken);
         }
         let body = Zeroizing::new(
-            serde_json::to_vec(&serde_json::json!({"pairing_token":pairing_token}))
-                .map_err(|_| Error::InvalidPairingToken)?,
+            serde_json::to_vec(
+                &serde_json::json!({"pairing_token":pairing_token,"expected_device":self.device}),
+            )
+            .map_err(|_| Error::InvalidPairingToken)?,
         );
         let response = self
             .request(
@@ -255,6 +259,8 @@ impl Client {
         if response.status() != StatusCode::CREATED {
             return Err(if response.status().is_server_error() {
                 Error::EnrollmentUncertain
+            } else if response.status() == StatusCode::BAD_REQUEST {
+                Error::EnrollmentRejected
             } else {
                 status_error(response.status())
             });

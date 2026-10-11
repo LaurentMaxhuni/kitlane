@@ -129,6 +129,10 @@ fn fake(steps: Vec<Step>) -> (String, thread::JoinHandle<()>) {
             } else {
                 assert!(!headers.to_lowercase().contains("authorization:"));
                 assert_eq!(
+                    serde_json::from_str::<Value>(&body).unwrap()["expected_device"],
+                    json!(device())
+                );
+                assert_eq!(
                     serde_json::from_str::<Value>(&body).unwrap()["pairing_token"],
                     PAIR
                 );
@@ -528,7 +532,26 @@ fn real_service_two_enrolled_devices_revision_update_and_revocation() {
         response["pairing_token"].as_str().unwrap().to_owned()
     };
     let first = Client::with_vault(&endpoint, &device(), Arc::new(MemoryVault::default())).unwrap();
-    first.enroll(&grant(&device())).unwrap();
+    let first_grant = grant(&device());
+    for field in ["id", "name", "platform", "architecture"] {
+        let mut wrong = device();
+        match field {
+            "id" => wrong.id = "cb68245b-12c1-4cc9-a4f1-1008b9e6c5df".into(),
+            "name" => wrong.name = "Wrong metadata".into(),
+            "platform" => wrong.platform = Platform::Linux,
+            "architecture" => wrong.architecture = "aarch64".into(),
+            _ => unreachable!(),
+        }
+        let wrong_client =
+            Client::with_vault(&endpoint, &wrong, Arc::new(MemoryVault::default())).unwrap();
+        assert_eq!(
+            wrong_client.enroll(&first_grant),
+            Err(Error::EnrollmentRejected)
+        );
+        assert!(!wrong_client.is_enrolled().unwrap());
+    }
+    // Every mismatch left the same grant unconsumed for its intended identity.
+    first.enroll(&first_grant).unwrap();
     assert!(first.sync(&snapshot(device(), 1)).unwrap().peers.is_empty());
     let mut peer = device();
     peer.id = "cb68245b-12c1-4cc9-a4f1-1008b9e6c5df".into();
@@ -619,5 +642,20 @@ fn enrollment_server_failure_requires_owner_check() {
     let client =
         Client::with_vault(&endpoint, &device(), Arc::new(MemoryVault::default())).unwrap();
     assert_eq!(client.enroll(PAIR), Err(Error::EnrollmentUncertain));
+    server.join().unwrap();
+}
+
+#[test]
+fn mismatched_grant_is_rejected_without_persisting_credentials() {
+    let (endpoint, server) = fake(vec![Step::json(
+        "POST",
+        "/v1/enroll",
+        400,
+        json!({"error":PAIR}),
+    )]);
+    let client =
+        Client::with_vault(&endpoint, &device(), Arc::new(MemoryVault::default())).unwrap();
+    assert_eq!(client.enroll(PAIR), Err(Error::EnrollmentRejected));
+    assert!(!client.is_enrolled().unwrap());
     server.join().unwrap();
 }
