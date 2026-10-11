@@ -313,6 +313,8 @@ mod tests {
                         version: Some("3.0".into()),
                         scope: kitlane_core::model::InstallScope::Machine,
                         source: kitlane_core::model::InventorySource::WindowsRegistry,
+                        native_id: None,
+                        origin: None,
                     }],
                     warnings: vec!["Partial inventory coverage".into()],
                 });

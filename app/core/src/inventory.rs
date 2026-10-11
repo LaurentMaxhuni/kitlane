@@ -211,6 +211,8 @@ mod records {
                     version: item.version,
                     scope: item.scope,
                     source: InventorySource::WindowsRegistry,
+                    native_id: None,
+                    origin: None,
                 });
             }
         }

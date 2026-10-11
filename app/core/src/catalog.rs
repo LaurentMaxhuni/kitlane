@@ -305,6 +305,8 @@ mod tests {
             version: Some("1.0".into()),
             scope: InstallScope::User,
             source: InventorySource::WindowsRegistry,
+            native_id: None,
+            origin: None,
         }
     }
 

@@ -62,6 +62,12 @@ pub struct InstalledApp {
     pub version: Option<String>,
     pub scope: InstallScope,
     pub source: InventorySource,
+    /// Observed bundle/Flatpak identifier. Metadata alone does not verify identity.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub native_id: Option<String>,
+    /// Observed package origin; meaningful only for package-manager inventory.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub origin: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -111,6 +117,8 @@ impl InventorySnapshot {
                     .as_deref()
                     .is_some_and(|v| !valid_text(v, 512))
                 || app.version.as_deref().is_some_and(|v| !valid_text(v, 128))
+                || app.native_id.as_deref().is_some_and(|v| !valid_text(v, 256))
+                || app.origin.as_deref().is_some_and(|v| !valid_text(v, 256))
                 || !ids.insert(&app.id)
             {
                 return Err("Invalid or duplicate application record");
@@ -136,6 +144,8 @@ mod tests {
             version: None,
             scope: InstallScope::User,
             source: InventorySource::WindowsRegistry,
+            native_id: None,
+            origin: None,
         };
         let mut snapshot = InventorySnapshot {
             device: DeviceInfo {
