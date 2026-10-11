@@ -65,6 +65,7 @@ mod bundles {
     const MAX_VALUES: usize = 4096;
     const MAX_PLIST_DEPTH: usize = 16;
     const MAX_TEXT_BYTES: usize = 16 * 1024;
+    const MAX_DECODED_BYTES: usize = 1024 * 1024;
     const COVERAGE: &str = "Coverage: macOS .app bundles in machine, system, and current-user application directories, with at most two nested directory levels. Linked entries, embedded apps, other users, other locations, and localized names are excluded. Metadata does not verify publisher, signatures, catalog identity, or update availability.";
 
     pub(super) struct Root {
@@ -143,8 +144,19 @@ mod bundles {
     struct Budget {
         keys: usize,
         values: usize,
+        decoded_bytes: usize,
     }
 
+    impl Budget {
+        fn charge_bytes<E: de::Error>(&mut self, bytes: usize) -> Result<(), E> {
+            self.decoded_bytes = self
+                .decoded_bytes
+                .checked_add(bytes)
+                .filter(|total| *total <= MAX_DECODED_BYTES)
+                .ok_or_else(|| E::custom("Bundle property list exceeds decoded byte limit"))?;
+            Ok(())
+        }
+    }
     // Deserialize through a bounded visitor instead of allocating an arbitrary
     // Value tree: small binary plists can repeatedly reference the same objects.
     struct Seed<'a> {
@@ -182,6 +194,7 @@ mod bundles {
             if value.len() > MAX_TEXT_BYTES {
                 return Err(E::custom("Bundle property list contains oversized text"));
             }
+            self.budget.charge_bytes::<E>(value.len())?;
             Ok(Parsed {
                 text: Some(value.to_owned()),
                 metadata: None,
@@ -205,7 +218,8 @@ mod bundles {
         fn visit_unit<E: de::Error>(self) -> Result<Parsed, E> {
             Ok(Parsed::default())
         }
-        fn visit_bytes<E: de::Error>(self, _: &[u8]) -> Result<Parsed, E> {
+        fn visit_bytes<E: de::Error>(self, value: &[u8]) -> Result<Parsed, E> {
+            self.budget.charge_bytes::<E>(value.len())?;
             Ok(Parsed::default())
         }
         fn visit_byte_buf<E: de::Error>(self, value: Vec<u8>) -> Result<Parsed, E> {
@@ -225,6 +239,7 @@ mod bundles {
             let mut metadata = Metadata::default();
             let mut seen = HashSet::new();
             while let Some(key) = map.next_key::<String>()? {
+                self.budget.charge_bytes::<A::Error>(key.len())?;
                 self.budget.keys += 1;
                 if self.budget.keys > MAX_KEYS || key.len() > 256 || !seen.insert(key.clone()) {
                     return Err(de::Error::custom(
@@ -837,6 +852,75 @@ mod bundles {
             }
             assert!(fixture.scan().apps.is_empty()); // Readable empty source is distinct.
         }
+        // Minimal binary object table: dictionary -> array -> repeated object.
+        // Build only the encoded payload, never an expanded large Value fixture.
+        fn shared_payload_plist(payload: &[u8], count: u16) -> Vec<u8> {
+            let mut bytes = b"bplist00".to_vec();
+            let mut offsets = Vec::new();
+            for object in [
+                vec![0xd1, 1, 2],
+                b"\x57Payload".to_vec(),
+                [
+                    vec![0xaf, 0x11],
+                    count.to_be_bytes().to_vec(),
+                    vec![3; count as usize],
+                ]
+                .concat(),
+                payload.to_vec(),
+            ] {
+                offsets.push(bytes.len() as u32);
+                bytes.extend_from_slice(&object);
+            }
+            let table_offset = bytes.len() as u64;
+            for offset in offsets {
+                bytes.extend_from_slice(&offset.to_be_bytes());
+            }
+            bytes.extend_from_slice(&[0, 0, 0, 0, 0, 0, 4, 1]);
+            bytes.extend_from_slice(&4_u64.to_be_bytes());
+            bytes.extend_from_slice(&0_u64.to_be_bytes());
+            bytes.extend_from_slice(&table_offset.to_be_bytes());
+            bytes
+        }
+
+        #[test]
+        fn repeated_binary_data_is_rejected_before_the_full_value_pass() {
+            let size = 200 * 1024_u32;
+            let payload = [
+                vec![0x4f, 0x12],
+                size.to_be_bytes().to_vec(),
+                vec![0; size as usize],
+            ]
+            .concat();
+            let bytes = shared_payload_plist(&payload, 4000);
+            assert!(bytes.len() < MAX_PLIST_BYTES);
+            // Check the bounded pass first so a regression fails without making
+            // the full pass expand this fixture to approximately 800 MiB.
+            assert!(plist::from_reader::<_, BoundedMetadata>(Cursor::new(&bytes)).is_err());
+            assert!(parse(&bytes).is_err());
+            let allowed = shared_payload_plist(&payload, 5);
+            assert!(parse(&allowed).is_ok());
+        }
+
+        #[test]
+        fn repeated_strings_and_dictionary_keys_share_the_decoded_byte_budget() {
+            let payload = [
+                vec![0x5f, 0x11],
+                (MAX_TEXT_BYTES as u16).to_be_bytes().to_vec(),
+                vec![b'x'; MAX_TEXT_BYTES],
+            ]
+            .concat();
+            assert!(parse(&shared_payload_plist(&payload, 63)).is_ok());
+            // 64 strings exactly fill 1 MiB; the dictionary's seven-byte key
+            // must also count, so even this boundary fixture is rejected.
+            let key_boundary = shared_payload_plist(&payload, 64);
+            assert!(plist::from_reader::<_, BoundedMetadata>(Cursor::new(&key_boundary)).is_err());
+            assert!(parse(&key_boundary).is_err());
+            let strings = shared_payload_plist(&payload, 65);
+            assert!(strings.len() < MAX_PLIST_BYTES);
+            assert!(plist::from_reader::<_, BoundedMetadata>(Cursor::new(&strings)).is_err());
+            assert!(parse(&strings).is_err());
+        }
+
         #[test]
         fn warning_and_value_counts_are_bounded() {
             let mut warnings = Vec::new();
