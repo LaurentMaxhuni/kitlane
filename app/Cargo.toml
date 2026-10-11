@@ -6,7 +6,12 @@ rust-version = "1.95"
 publish = false
 description = "Kitlane native desktop application"
 
+[workspace]
+members = ["core"]
+resolver = "3"
+
 [dependencies]
+kitlane-core = { path = "core" }
 eframe = { version = "0.36.2", default-features = false, features = ["glow", "accesskit", "wayland", "x11"] }
 
 [build-dependencies]
