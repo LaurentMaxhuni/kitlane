@@ -85,7 +85,8 @@ fn valid_text(value: &str, max: usize) -> bool {
 
 impl DeviceInfo {
     pub fn validate(&self) -> Result<(), &'static str> {
-        if uuid::Uuid::parse_str(&self.id).is_err()
+        if !uuid::Uuid::parse_str(&self.id)
+            .is_ok_and(|id| !id.is_nil() && id.to_string() == self.id)
             || !valid_text(&self.name, 128)
             || !valid_text(&self.architecture, 32)
         {
@@ -105,7 +106,10 @@ impl InventorySnapshot {
         for app in &self.apps {
             if !valid_text(&app.id, 256)
                 || !valid_text(&app.name, 512)
-                || app.publisher.as_deref().is_some_and(|v| !valid_text(v, 512))
+                || app
+                    .publisher
+                    .as_deref()
+                    .is_some_and(|v| !valid_text(v, 512))
                 || app.version.as_deref().is_some_and(|v| !valid_text(v, 128))
                 || !ids.insert(&app.id)
             {
@@ -126,13 +130,23 @@ mod tests {
     #[test]
     fn rejects_duplicate_ids_and_control_characters() {
         let app = InstalledApp {
-            id: "registry-app".into(), name: "Example".into(), publisher: None,
-            version: None, scope: InstallScope::User, source: InventorySource::WindowsRegistry,
+            id: "registry-app".into(),
+            name: "Example".into(),
+            publisher: None,
+            version: None,
+            scope: InstallScope::User,
+            source: InventorySource::WindowsRegistry,
         };
         let mut snapshot = InventorySnapshot {
-            device: DeviceInfo { id: uuid::Uuid::new_v4().to_string(), name: "This device".into(),
-                platform: Platform::Windows, architecture: "x86_64".into() },
-            scanned_at_unix_secs: 0, apps: vec![app.clone()], warnings: vec![],
+            device: DeviceInfo {
+                id: uuid::Uuid::new_v4().to_string(),
+                name: "This device".into(),
+                platform: Platform::Windows,
+                architecture: "x86_64".into(),
+            },
+            scanned_at_unix_secs: 0,
+            apps: vec![app.clone()],
+            warnings: vec![],
         };
         assert!(snapshot.validate().is_ok());
         snapshot.apps.push(app);

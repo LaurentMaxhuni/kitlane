@@ -2,6 +2,7 @@
 
 mod shell;
 mod theme;
+mod worker;
 
 fn main() -> eframe::Result {
     let options = eframe::NativeOptions {
@@ -17,7 +18,7 @@ fn main() -> eframe::Result {
         Box::new(|cc| {
             theme::install_fonts(&cc.egui_ctx);
             theme::apply(&cc.egui_ctx, false);
-            Ok(Box::new(shell::KitlaneApp::default()))
+            Ok(Box::new(shell::KitlaneApp::new(cc.egui_ctx.clone())))
         }),
     )
 }

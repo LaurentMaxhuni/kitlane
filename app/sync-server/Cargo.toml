@@ -5,9 +5,6 @@ edition = "2024"
 rust-version = "1.95"
 publish = false
 
-# Removed when orchestrator adds this service to the parent workspace.
-[workspace]
-
 [dependencies]
 kitlane-core = { path = "../core" }
 axum = "0.8"
