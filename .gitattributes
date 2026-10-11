@@ -1,4 +1,4 @@
 * text=auto eol=lf
 
 # Preserve the exact bytes recorded in the asset checksum manifest.
-assets/** -text
+design-system/assets/** -text

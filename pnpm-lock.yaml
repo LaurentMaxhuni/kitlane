@@ -6,7 +6,9 @@ settings:
 
 importers:
 
-  .:
+  .: {}
+
+  design-system:
     devDependencies:
       lucide-static:
         specifier: ^0.468.0

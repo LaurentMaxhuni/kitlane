@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Consolidated the package, assets, documentation, and reference in `design-system/` for shared use by the app and marketing website.
+- Added root workspace commands and documented frontend package imports.
+
 ## 0.1.0 — 2026-10-11
 
 - Established Kitlane's modular K identity and navy/cyan/mint palette.
