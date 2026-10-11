@@ -1,0 +1,226 @@
+{
+  "schema_version": 1,
+  "products": [
+    {
+      "match_rules": [
+        {
+          "name": "Microsoft Visual Studio Code",
+          "evidence": [
+            {
+              "summary": "Installer declares Microsoft Corporation as publisher.",
+              "reviewed_on": "2026-10-11",
+              "url": "https://github.com/microsoft/vscode/blob/main/build/win32/code.iss"
+            },
+            {
+              "summary": "User installer adds the literal (User) suffix.",
+              "reviewed_on": "2026-10-11",
+              "url": "https://github.com/microsoft/vscode/blob/main/build/gulpfile.vscode.win32.ts"
+            },
+            {
+              "summary": "Microsoft catalog names the stable product Microsoft Visual Studio Code.",
+              "reviewed_on": "2026-10-11",
+              "url": "https://github.com/microsoft/winget-pkgs/blob/master/manifests/m/Microsoft/VisualStudioCode/1.105.0/Microsoft.VisualStudioCode.locale.en-US.yaml"
+            }
+          ],
+          "publisher": "Microsoft Corporation"
+        },
+        {
+          "name": "Microsoft Visual Studio Code (User)",
+          "evidence": [
+            {
+              "summary": "Installer declares Microsoft Corporation as publisher.",
+              "reviewed_on": "2026-10-11",
+              "url": "https://github.com/microsoft/vscode/blob/main/build/win32/code.iss"
+            },
+            {
+              "summary": "User installer adds the literal (User) suffix.",
+              "reviewed_on": "2026-10-11",
+              "url": "https://github.com/microsoft/vscode/blob/main/build/gulpfile.vscode.win32.ts"
+            },
+            {
+              "summary": "Microsoft catalog names the stable product Microsoft Visual Studio Code.",
+              "reviewed_on": "2026-10-11",
+              "url": "https://github.com/microsoft/winget-pkgs/blob/master/manifests/m/Microsoft/VisualStudioCode/1.105.0/Microsoft.VisualStudioCode.locale.en-US.yaml"
+            }
+          ],
+          "publisher": "Microsoft Corporation"
+        }
+      ],
+      "name": "Visual Studio Code",
+      "platforms": [
+        {
+          "availability": "available",
+          "platform": "windows",
+          "evidence": [
+            {
+              "summary": "Microsoft documents Windows client availability.",
+              "reviewed_on": "2026-10-11",
+              "url": "https://code.visualstudio.com/docs/supporting/requirements"
+            }
+          ],
+          "compatibility_note": "Requires a supported 64-bit Windows client. Exact CPU architecture, OS version and deployment environment are not checked."
+        },
+        {
+          "availability": "available",
+          "platform": "macos",
+          "evidence": [
+            {
+              "summary": "Microsoft documents macOS availability.",
+              "reviewed_on": "2026-10-11",
+              "url": "https://code.visualstudio.com/docs/supporting/requirements"
+            }
+          ],
+          "compatibility_note": "Requires a macOS release receiving Apple security updates. CPU architecture and target OS version are not checked."
+        },
+        {
+          "availability": "available",
+          "platform": "linux",
+          "evidence": [
+            {
+              "summary": "Microsoft documents Debian/Ubuntu and Red Hat/Fedora Linux availability.",
+              "reviewed_on": "2026-10-11",
+              "url": "https://code.visualstudio.com/docs/supporting/requirements"
+            }
+          ],
+          "compatibility_note": "Distribution support and native library requirements apply. GLIBC 2.28 and GLIBCXX 3.4.25 minimums are documented; target compatibility is not checked."
+        }
+      ],
+      "id": "visual-studio-code",
+      "publisher": "Microsoft Corporation"
+    },
+    {
+      "match_rules": [
+        {
+          "name": "VLC media player",
+          "evidence": [
+            {
+              "summary": "VideoLAN installer writes exact VLC media player display name and VideoLAN publisher.",
+              "reviewed_on": "2026-10-11",
+              "url": "https://github.com/videolan/vlc/blob/3.0.x/extras/package/win32/NSIS/vlc.win32.nsi.in"
+            }
+          ],
+          "publisher": "VideoLAN"
+        }
+      ],
+      "name": "VLC media player",
+      "platforms": [
+        {
+          "availability": "available",
+          "platform": "windows",
+          "evidence": [
+            {
+              "summary": "VideoLAN publishes official Windows desktop builds.",
+              "reviewed_on": "2026-10-11",
+              "url": "https://www.videolan.org/vlc/download-windows.html"
+            }
+          ],
+          "compatibility_note": "Separate x86, x64 and ARM64 packages are listed. OS version, architecture and release-specific requirements are not checked."
+        },
+        {
+          "availability": "available",
+          "platform": "macos",
+          "evidence": [
+            {
+              "summary": "VideoLAN publishes official macOS builds.",
+              "reviewed_on": "2026-10-11",
+              "url": "https://www.videolan.org/vlc/download-macosx.html"
+            }
+          ],
+          "compatibility_note": "Vendor page lists macOS 10.7.5 or later and 64-bit Intel or Apple silicon. Release-specific target compatibility is not checked."
+        },
+        {
+          "availability": "available",
+          "platform": "linux",
+          "evidence": [
+            {
+              "summary": "VideoLAN documents VLC availability for Ubuntu Linux.",
+              "reviewed_on": "2026-10-11",
+              "url": "https://www.videolan.org/vlc/download-ubuntu.html"
+            }
+          ],
+          "compatibility_note": "Ubuntu evidence establishes Linux availability, not support for every distribution or CPU. Packaging origin and target requirements must be checked separately."
+        }
+      ],
+      "id": "vlc-media-player",
+      "publisher": "VideoLAN"
+    },
+    {
+      "match_rules": [
+        {
+          "name": "Notepad++ (64-bit x64)",
+          "evidence": [
+            {
+              "summary": "Vendor installer writes this exact architecture display name and Notepad++ Team publisher.",
+              "reviewed_on": "2026-10-11",
+              "url": "https://github.com/notepad-plus-plus/notepad-plus-plus/blob/master/PowerEditor/installer/nsisInclude/tools.nsh"
+            }
+          ],
+          "publisher": "Notepad++ Team"
+        },
+        {
+          "name": "Notepad++ (ARM 64-bit)",
+          "evidence": [
+            {
+              "summary": "Vendor installer writes this exact architecture display name and Notepad++ Team publisher.",
+              "reviewed_on": "2026-10-11",
+              "url": "https://github.com/notepad-plus-plus/notepad-plus-plus/blob/master/PowerEditor/installer/nsisInclude/tools.nsh"
+            }
+          ],
+          "publisher": "Notepad++ Team"
+        },
+        {
+          "name": "Notepad++ (32-bit x86)",
+          "evidence": [
+            {
+              "summary": "Vendor installer writes this exact architecture display name and Notepad++ Team publisher.",
+              "reviewed_on": "2026-10-11",
+              "url": "https://github.com/notepad-plus-plus/notepad-plus-plus/blob/master/PowerEditor/installer/nsisInclude/tools.nsh"
+            }
+          ],
+          "publisher": "Notepad++ Team"
+        }
+      ],
+      "name": "Notepad++",
+      "platforms": [
+        {
+          "availability": "available",
+          "platform": "windows",
+          "evidence": [
+            {
+              "summary": "Notepad++ vendor documents Windows releases and their support status.",
+              "reviewed_on": "2026-10-11",
+              "url": "https://github.com/notepad-plus-plus/notepad-plus-plus/blob/master/SUPPORTED_SYSTEM.md"
+            }
+          ],
+          "compatibility_note": "Windows runtime compatibility differs from vendor support status. See vendor table; OS version and x86, x64 or ARM64 target compatibility are not checked."
+        },
+        {
+          "availability": "unavailable",
+          "platform": "macos",
+          "evidence": [
+            {
+              "summary": "Vendor FAQ explicitly limits the native product to the Windows family.",
+              "reviewed_on": "2026-10-11",
+              "url": "https://github.com/notepad-plus-plus/notepad-plus-plus/wiki/FAQ"
+            }
+          ],
+          "compatibility_note": "No official native macOS counterpart. Wine, virtual machines and forks are outside this product availability claim."
+        },
+        {
+          "availability": "unavailable",
+          "platform": "linux",
+          "evidence": [
+            {
+              "summary": "Vendor FAQ explicitly limits the native product to the Windows family.",
+              "reviewed_on": "2026-10-11",
+              "url": "https://github.com/notepad-plus-plus/notepad-plus-plus/wiki/FAQ"
+            }
+          ],
+          "compatibility_note": "No official native Linux counterpart. Wine, virtual machines and forks are outside this product availability claim."
+        }
+      ],
+      "id": "notepad-plus-plus",
+      "publisher": "Notepad++ Team"
+    }
+  ]
+}
