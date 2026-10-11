@@ -22,3 +22,5 @@ One runtime dependency: eframe with OpenGL rendering and native accessibility. D
 `build.rs` validates and converts shared semantic color tokens into Rust constants at compile time. Inter is embedded once in the executable; neither fonts nor tokens need runtime file access. Keep the font's bundled OFL license with distributed releases. Cargo.lock pins dependency versions; target/ is generated and ignored.
 
 Shared assets, tokens, and design guidance live in [`../design-system/`](../design-system/README.md).
+
+See [implementation research](docs/implementation-research.md) for platform adapters, identity matching, sync, AI alternatives, safety boundaries, and delivery sequence.
