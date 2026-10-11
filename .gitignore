@@ -4,4 +4,5 @@ node_modules/
 Thumbs.db
 target/
 graphify-out/
+dist/
 
