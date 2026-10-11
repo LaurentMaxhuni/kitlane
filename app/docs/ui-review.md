@@ -30,3 +30,11 @@ Keep earlier screenshots as a baseline and compare at matching page/theme/state/
 Run parser validation with `cargo test --bin ui-preview preview::tests`. Capture generation does not prove production actions work: test keyboard traversal, text input, cancellation, vault locking, and normal scan/sync behavior separately with disposable data. Never use screenshots containing real device identities, installed software, credentials, or vault material as review fixtures.
 
 API references: cached egui 0.36.2 `viewport.rs` defines `ViewportCommand::Screenshot(UserData)`; `data/input/event.rs` returns `Event::Screenshot { viewport_id, user_data, image }`. eframe 0.36.2 `epi.rs` defines `App::logic` and `App::ui`.
+
+## Redesign validation — 2026-10-11
+
+Reviewed native Windows captures of Library, Devices, and Settings in both themes at widths 480, 900, and 1440 (height 900). Also reviewed Library empty/loading/error/long-label states at 480×640. Captures use sample inventory, saved under ignored `target/ui-previews/`. Layout fixes include aligned table columns, consistent card widths, bounded labels, explicit disabled action colors, wrapped error messages, and accessible scrolling on small windows.
+
+Workspace tests cover all pages/themes at three widths, idle repaint behavior, keyboard navigation, appearance selection, and inventory search. Production Windows executable receives a separate launch/close smoke check with disposable local storage. macOS/Linux visual validation and live credential-store tests remain outside this Windows review.
+
+Added `egui_extras` for bundled SVG loaders/native tables and `image` for PNG loading/captures. Initial production window size is 1200×780; minimum remains 480×360. No production environment variables or sync defaults changed. Installation, automatic updates, and AI alternatives remain unavailable in this milestone.
