@@ -9,6 +9,20 @@ use kitlane_core::{
 pub enum Command {
     Scan,
     SaveSettings(AppSettings),
+    CheckEnrollment {
+        endpoint: String,
+    },
+    Enroll {
+        endpoint: String,
+        pairing_token: zeroize::Zeroizing<String>,
+    },
+    Sync {
+        endpoint: String,
+        snapshot: Box<InventorySnapshot>,
+    },
+    Disconnect {
+        endpoint: String,
+    },
 }
 
 pub enum Event {
@@ -20,6 +34,9 @@ pub enum Event {
     Scanned(InventorySnapshot),
     ScanFailed(String),
     StorageFailed(String),
+    EnrollmentState(bool),
+    Synced(Vec<InventorySnapshot>),
+    SyncFailed(String),
 }
 
 pub struct Worker {
@@ -137,6 +154,57 @@ pub fn start(ctx: eframe::egui::Context) -> Worker {
                         )))
                     {
                         return;
+                    }
+                }
+                Command::CheckEnrollment { endpoint } => {
+                    let result = kitlane_sync_client::Client::new(&endpoint, &device)
+                        .and_then(|client| client.is_enrolled());
+                    match result {
+                        Ok(enrolled) => {
+                            emit(Event::EnrollmentState(enrolled));
+                        }
+                        Err(error) => {
+                            emit(Event::SyncFailed(error.to_string()));
+                        }
+                    }
+                }
+                Command::Enroll {
+                    endpoint,
+                    pairing_token,
+                } => {
+                    let result = kitlane_sync_client::Client::new(&endpoint, &device)
+                        .and_then(|client| client.enroll(&pairing_token));
+                    match result {
+                        Ok(()) => {
+                            emit(Event::EnrollmentState(true));
+                        }
+                        Err(error) => {
+                            emit(Event::SyncFailed(error.to_string()));
+                        }
+                    }
+                }
+                Command::Sync { endpoint, snapshot } => {
+                    let result = kitlane_sync_client::Client::new(&endpoint, &device)
+                        .and_then(|client| client.sync(&snapshot));
+                    match result {
+                        Ok(result) => {
+                            emit(Event::Synced(result.peers));
+                        }
+                        Err(error) => {
+                            emit(Event::SyncFailed(error.to_string()));
+                        }
+                    }
+                }
+                Command::Disconnect { endpoint } => {
+                    let result = kitlane_sync_client::Client::new(&endpoint, &device)
+                        .and_then(|client| client.disconnect());
+                    match result {
+                        Ok(()) => {
+                            emit(Event::EnrollmentState(false));
+                        }
+                        Err(error) => {
+                            emit(Event::SyncFailed(error.to_string()));
+                        }
                     }
                 }
             }

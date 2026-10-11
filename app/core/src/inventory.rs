@@ -1,4 +1,4 @@
-//! Read-only Windows uninstall-registry inventory. Metadata is observation, not
+//! Read-only platform inventory dispatch. Metadata is observation, not
 //! verified product identity or proof that an installer/update is available.
 use crate::model::{DeviceInfo, InventorySnapshot};
 use std::fmt;
@@ -11,15 +11,19 @@ pub enum InventoryError {
     LimitExceeded,
     InvalidClock,
     InvalidSnapshot(&'static str),
+    SourceUnavailable(&'static str),
+    ScanFailed(String),
 }
 
 impl fmt::Display for InventoryError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
             Self::UnsupportedPlatform => {
-                "Installed application scanning is supported only on Windows"
+                "Installed application scanning is unavailable on this platform"
             }
             Self::InvalidDevice(message) | Self::InvalidSnapshot(message) => message,
+            Self::SourceUnavailable(message) => message,
+            Self::ScanFailed(message) => message,
             Self::RegistryUnavailable => "No Windows uninstall registry source could be read",
             Self::LimitExceeded => "Registry inventory exceeded its scan or application limit",
             Self::InvalidClock => "System clock cannot provide a valid inventory timestamp",
@@ -29,8 +33,7 @@ impl fmt::Display for InventoryError {
 
 impl std::error::Error for InventoryError {}
 
-/// Scan the current Windows user's and machine's uninstall registrations.
-/// Never runs installers, WMI, subprocesses, elevation, or network requests.
+/// Scan platform application observations. Never installs or updates programs.
 /// Partial access failures produce warnings; complete access failure is an error.
 pub fn scan(device: DeviceInfo) -> Result<InventorySnapshot, InventoryError> {
     device.validate().map_err(InventoryError::InvalidDevice)?;
@@ -43,7 +46,15 @@ pub fn scan(device: DeviceInfo) -> Result<InventorySnapshot, InventoryError> {
         }
         windows::scan(device)
     }
-    #[cfg(not(windows))]
+    #[cfg(target_os = "macos")]
+    {
+        crate::inventory_macos::scan(device)
+    }
+    #[cfg(target_os = "linux")]
+    {
+        crate::inventory_linux::scan(device)
+    }
+    #[cfg(not(any(windows, target_os = "macos", target_os = "linux")))]
     {
         Err(InventoryError::UnsupportedPlatform)
     }

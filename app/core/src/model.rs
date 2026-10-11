@@ -117,7 +117,10 @@ impl InventorySnapshot {
                     .as_deref()
                     .is_some_and(|v| !valid_text(v, 512))
                 || app.version.as_deref().is_some_and(|v| !valid_text(v, 128))
-                || app.native_id.as_deref().is_some_and(|v| !valid_text(v, 256))
+                || app
+                    .native_id
+                    .as_deref()
+                    .is_some_and(|v| !valid_text(v, 256))
                 || app.origin.as_deref().is_some_and(|v| !valid_text(v, 256))
                 || !ids.insert(&app.id)
             {
@@ -134,6 +137,18 @@ impl InventorySnapshot {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn legacy_application_records_keep_optional_native_metadata() {
+        let old = r#"{"id":"old","name":"Legacy","publisher":null,"version":null,"scope":"user","source":"windows_registry"}"#;
+        let app: InstalledApp = serde_json::from_str(old).unwrap();
+        assert_eq!(app.native_id, None);
+        assert_eq!(app.origin, None);
+        assert_eq!(
+            serde_json::to_value(&app).unwrap(),
+            serde_json::from_str::<serde_json::Value>(old).unwrap()
+        );
+    }
 
     #[test]
     fn rejects_duplicate_ids_and_control_characters() {
@@ -163,6 +178,12 @@ mod tests {
         assert!(snapshot.validate().is_err());
         snapshot.apps.pop();
         snapshot.apps[0].name.push('\n');
+        assert!(snapshot.validate().is_err());
+        snapshot.apps[0].name.pop();
+        snapshot.apps[0].native_id = Some("bad\nid".into());
+        assert!(snapshot.validate().is_err());
+        snapshot.apps[0].native_id = None;
+        snapshot.apps[0].origin = Some("x".repeat(257));
         assert!(snapshot.validate().is_err());
     }
 }

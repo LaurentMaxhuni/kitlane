@@ -2,7 +2,9 @@ use eframe::egui;
 use kitlane_core::{
     catalog::{Availability, Catalog, MatchOutcome},
     model::{AppSettings, DeviceInfo, InventorySnapshot, Platform},
+    planner::{self, PlanEntry},
 };
+use zeroize::Zeroize;
 
 use crate::worker::{self, Command, Event, Worker};
 
@@ -12,6 +14,34 @@ enum Page {
     Library,
     Devices,
     Settings,
+}
+
+struct SyncUi {
+    endpoint: String,
+    pairing_token: String,
+    consent: bool,
+    enrolled: bool,
+    busy: bool,
+    message: Option<String>,
+}
+
+impl Default for SyncUi {
+    fn default() -> Self {
+        Self {
+            endpoint: "http://127.0.0.1:8787".into(),
+            pairing_token: String::new(),
+            consent: false,
+            enrolled: false,
+            busy: false,
+            message: None,
+        }
+    }
+}
+
+impl Drop for SyncUi {
+    fn drop(&mut self) {
+        self.pairing_token.zeroize();
+    }
 }
 
 #[derive(Default)]
@@ -28,6 +58,9 @@ pub struct KitlaneApp {
     scanning: bool,
     cached: bool,
     error: Option<String>,
+    sync: SyncUi,
+    peers: Vec<InventorySnapshot>,
+    plans: Vec<PlanEntry>,
 }
 
 impl KitlaneApp {
@@ -92,6 +125,31 @@ impl KitlaneApp {
                     self.scanning = false;
                     self.error = Some(error);
                 }
+                Event::EnrollmentState(enrolled) => {
+                    self.sync.busy = false;
+                    self.sync.enrolled = enrolled;
+                    self.peers.clear();
+                    self.plans.clear();
+                    self.sync.message = Some(
+                        if enrolled {
+                            "Credential saved. Sync runs only when you click Sync now."
+                        } else {
+                            "No saved credential. Forgetting it does not revoke server access."
+                        }
+                        .into(),
+                    );
+                }
+                Event::Synced(peers) => {
+                    self.sync.busy = false;
+                    self.peers = peers;
+                    self.rebuild_plans();
+                    self.sync.message =
+                        Some("Inventory shared and peer snapshots refreshed.".into());
+                }
+                Event::SyncFailed(error) => {
+                    self.sync.busy = false;
+                    self.sync.message = Some(error);
+                }
             }
         }
     }
@@ -119,6 +177,140 @@ impl KitlaneApp {
         }
         self.snapshot = Some(snapshot);
         self.filter_rows();
+        self.rebuild_plans();
+    }
+
+    fn rebuild_plans(&mut self) {
+        self.plans.clear();
+        if let Some(snapshot) = &self.snapshot {
+            match Catalog::bundled() {
+                Ok(catalog) => match planner::build_plan(&catalog, snapshot, &self.peers) {
+                    Ok(plans) => self.plans = plans,
+                    Err(error) => {
+                        self.error = Some(format!("Cannot build compatibility plan: {error}"))
+                    }
+                },
+                Err(error) => self.error = Some(error.to_string()),
+            }
+        }
+    }
+
+    fn send_sync(&mut self, command: Command) {
+        if let Some(worker) = &self.worker {
+            match worker.try_send(command) {
+                Ok(()) => {
+                    self.sync.busy = true;
+                    self.sync.message = None;
+                }
+                Err(_) => {
+                    self.sync.message =
+                        Some("Background worker unavailable or busy. Try again.".into())
+                }
+            }
+        }
+    }
+
+    fn devices(&mut self, ui: &mut egui::Ui) {
+        ui.heading("Your devices");
+        if let Some(device) = &self.device {
+            ui.label(format!(
+                "{} · {} · {}",
+                device.name,
+                device.platform.label(),
+                device.architecture
+            ));
+            ui.monospace(&device.id);
+            if ui.button("Copy pairing identity").clicked()
+                && let Ok(identity) = serde_json::to_string(device)
+            {
+                ui.ctx().copy_text(identity);
+            }
+        }
+        ui.separator();
+        ui.label("Connect to your local Kitlane sync service. Remote-device transport is not available yet.");
+        ui.add_enabled_ui(!self.sync.busy, |ui| {
+            ui.horizontal(|ui| {
+                ui.label("Service");
+                if ui.text_edit_singleline(&mut self.sync.endpoint).changed() {
+                    self.sync.enrolled = false;
+                    self.sync.consent = false;
+                    self.sync.pairing_token.zeroize();
+                    self.peers.clear();
+                    self.plans.clear();
+                    self.sync.message = None;
+                }
+            });
+            ui.label("Enrolled devices under this owner can read your app names, publishers, versions, and device metadata.");
+            ui.checkbox(&mut self.sync.consent, "I agree to share inventory with this service and its enrolled devices");
+            let ready = self.device.is_some() && self.worker.is_some();
+            ui.horizontal(|ui| {
+                if ui.add_enabled(ready, egui::Button::new("Check saved enrollment")).clicked() {
+                    self.send_sync(Command::CheckEnrollment { endpoint: self.sync.endpoint.clone() });
+                }
+                if ui.add_enabled(ready, egui::Button::new("Forget credential")).clicked() {
+                    self.send_sync(Command::Disconnect { endpoint: self.sync.endpoint.clone() });
+                }
+            });
+            ui.add(egui::TextEdit::singleline(&mut self.sync.pairing_token).password(true).char_limit(64).hint_text("Owner-issued pairing token"));
+            if ui.add_enabled(ready && self.sync.consent && !self.sync.enrolled && self.sync.pairing_token.len() == 64,
+                egui::Button::new("Enroll this device")).clicked() {
+                let pairing_token = zeroize::Zeroizing::new(std::mem::take(&mut self.sync.pairing_token));
+                self.send_sync(Command::Enroll { endpoint: self.sync.endpoint.clone(), pairing_token });
+            }
+            if ui.add_enabled(ready && self.sync.consent && self.sync.enrolled && self.snapshot.is_some() && !self.scanning,
+                egui::Button::new("Sync now")).clicked()
+                && let Some(snapshot) = self.snapshot.clone() {
+                self.send_sync(Command::Sync { endpoint: self.sync.endpoint.clone(), snapshot: Box::new(snapshot) });
+            }
+        });
+        if self.sync.busy {
+            ui.spinner();
+            ui.label("Working with the sync service…");
+        }
+        if let Some(message) = &self.sync.message {
+            ui.label(message);
+        }
+        ui.label("For lost enrollment credentials, ask the service owner for a recovery pairing token. Forgetting a local credential does not revoke it on the service.");
+        if !self.peers.is_empty() {
+            ui.separator();
+            ui.heading("Synced devices");
+            for peer in &self.peers {
+                ui.label(format!(
+                    "{} · {} · {} apps",
+                    peer.device.name,
+                    peer.device.platform.label(),
+                    peer.apps.len()
+                ));
+            }
+        }
+        if !self.plans.is_empty() {
+            ui.separator();
+            ui.heading("Compatibility proposals for this device");
+            ui.label("Review only. No programs are installed, updated, or removed.");
+            egui::ScrollArea::vertical()
+                .id_salt("compatibility-plans")
+                .show_rows(ui, 56.0, self.plans.len(), |ui, range| {
+                    for index in range {
+                        let plan = &self.plans[index];
+                        ui.allocate_ui(egui::vec2(ui.available_width(), 56.0), |ui| {
+                            ui.add(
+                                egui::Label::new(
+                                    egui::RichText::new(format!(
+                                        "{} · {}",
+                                        plan.name,
+                                        plan.status.label()
+                                    ))
+                                    .strong(),
+                                )
+                                .truncate(),
+                            )
+                            .on_hover_text(&plan.name);
+                            ui.add(egui::Label::new(&plan.reason).truncate())
+                                .on_hover_text(&plan.reason);
+                        });
+                    }
+                });
+        }
     }
 
     fn filter_rows(&mut self) {
@@ -149,7 +341,7 @@ impl KitlaneApp {
             }
         });
         ui.label("OS availability uses reviewed vendor evidence. CPU and OS-version compatibility are not checked yet.");
-        ui.label("Catalog matches use installed name and publisher metadata; they do not authorize installation.");
+        ui.label("Catalog matches use observed metadata and reviewed identifiers; installation still requires verification.");
         if ui
             .add(egui::TextEdit::singleline(&mut self.query).hint_text("Search apps or publishers"))
             .changed()
@@ -182,37 +374,63 @@ impl KitlaneApp {
             for row in range {
                 let index = self.rows[row];
                 let app = &snapshot.apps[index];
-                ui.horizontal(|ui| {
-                    ui.add(egui::Label::new(egui::RichText::new(&app.name).strong()).truncate())
-                        .on_hover_text(&app.name);
-                    ui.label(app.version.as_deref().unwrap_or("Version unknown"));
-                });
-                ui.add(
-                    egui::Label::new(app.publisher.as_deref().unwrap_or("Publisher unknown"))
-                        .truncate(),
+                let heading = format!(
+                    "{} · {}",
+                    app.name,
+                    app.version.as_deref().unwrap_or("Version unknown")
                 );
-                ui.horizontal(|ui| {
-                    if let Some(MatchOutcome::Matched(product)) = self.matches.get(index) {
-                        for platform in [Platform::Windows, Platform::Macos, Platform::Linux] {
-                            let support = product.support(platform);
-                            let label = match support.availability {
-                                Availability::Available => "Available",
-                                Availability::Unavailable => "Unavailable",
-                                Availability::Unknown => "Unknown",
-                            };
-                            let text = format!("{}: {label}", platform.label());
-                            if let Some(evidence) = support.evidence.first() {
-                                ui.hyperlink_to(text, &evidence.url)
-                                    .on_hover_text(&support.compatibility_note);
-                            } else {
-                                ui.label(text);
+                let scope = match app.scope {
+                    kitlane_core::model::InstallScope::User => "User",
+                    kitlane_core::model::InstallScope::Machine => "Machine",
+                    kitlane_core::model::InstallScope::Unknown => "Unknown scope",
+                };
+                let details = match app.source {
+                    kitlane_core::model::InventorySource::Flatpak => format!(
+                        "Flatpak · {scope} · origin {} (unverified) · {}",
+                        app.origin.as_deref().unwrap_or("unknown"),
+                        app.native_id.as_deref().unwrap_or("Unknown ID")
+                    ),
+                    kitlane_core::model::InventorySource::MacosBundle => format!(
+                        "macOS bundle · {scope} · {}",
+                        app.native_id.as_deref().unwrap_or("Unknown bundle ID")
+                    ),
+                    kitlane_core::model::InventorySource::WindowsRegistry => format!(
+                        "Windows registry · {scope} · {}",
+                        app.publisher.as_deref().unwrap_or("Publisher unknown")
+                    ),
+                    kitlane_core::model::InventorySource::Manual => format!(
+                        "Manual · {scope} · {}",
+                        app.publisher.as_deref().unwrap_or("Publisher unknown")
+                    ),
+                };
+                ui.allocate_ui(egui::vec2(ui.available_width(), 74.0), |ui| {
+                    ui.add(egui::Label::new(egui::RichText::new(&heading).strong()).truncate())
+                        .on_hover_text(&heading);
+                    ui.add(egui::Label::new(&details).truncate())
+                        .on_hover_text(&details);
+                    ui.horizontal(|ui| {
+                        if let Some(MatchOutcome::Matched(product)) = self.matches.get(index) {
+                            for platform in [Platform::Windows, Platform::Macos, Platform::Linux] {
+                                let support = product.support(platform);
+                                let label = match support.availability {
+                                    Availability::Available => "Available",
+                                    Availability::Unavailable => "Unavailable",
+                                    Availability::Unknown => "Unknown",
+                                };
+                                let text = format!("{}: {label}", platform.label());
+                                if let Some(evidence) = support.evidence.first() {
+                                    ui.hyperlink_to(text, &evidence.url)
+                                        .on_hover_text(&support.compatibility_note);
+                                } else {
+                                    ui.label(text);
+                                }
                             }
+                        } else {
+                            ui.label("Cross-platform availability unknown · no catalog match");
                         }
-                    } else {
-                        ui.label("Cross-platform availability unknown · no catalog match");
-                    }
+                    });
+                    ui.separator();
                 });
-                ui.separator();
             }
         });
     }
@@ -238,17 +456,9 @@ impl KitlaneApp {
         match self.page {
             Page::Library => self.library(ui),
             Page::Devices => {
-                ui.heading("Your devices");
-                if let Some(device) = &self.device {
-                    ui.label(&device.name);
-                    ui.label(format!(
-                        "{} · {}",
-                        device.platform.label(),
-                        device.architecture
-                    ));
-                }
-                ui.label("No other devices linked. Linking is not available in the app yet.");
-                ui.label("Your inventory stays on this device.");
+                egui::ScrollArea::vertical()
+                    .id_salt("devices-page")
+                    .show(ui, |ui| self.devices(ui));
             }
             Page::Settings => {
                 ui.heading("Appearance");
@@ -319,12 +529,28 @@ mod tests {
                     warnings: vec!["Partial inventory coverage".into()],
                 });
                 assert!(matches!(app.matches[0], MatchOutcome::Matched(_)));
-                let mut output = ctx.run_ui(egui::RawInput::default(), |ui| {
+                let mut peer = app.snapshot.clone().unwrap();
+                app.device = Some(peer.device.clone());
+                peer.device.id = kitlane_core::new_device_id();
+                peer.device.name = "Peer device".into();
+                peer.apps[0].name = "Notepad++ (64-bit x64)".into();
+                peer.apps[0].publisher = Some("Notepad++ Team".into());
+                app.peers = vec![peer];
+                app.rebuild_plans();
+                assert_eq!(app.plans.len(), 1);
+                let input = || egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        egui::vec2(480.0, 720.0),
+                    )),
+                    ..Default::default()
+                };
+                let mut output = ctx.run_ui(input(), |ui| {
                     egui::CentralPanel::default().show(ui, |ui| app.content(ui));
                 });
                 for _ in 0..4 {
                     output.textures_delta.clear();
-                    output = ctx.run_ui(egui::RawInput::default(), |ui| {
+                    output = ctx.run_ui(input(), |ui| {
                         egui::CentralPanel::default().show(ui, |ui| app.content(ui));
                     });
                 }

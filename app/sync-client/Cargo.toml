@@ -30,7 +30,3 @@ tempfile = "3"
 
 [lints.rust]
 unsafe_code = "forbid"
-
-[workspace]
-
-
