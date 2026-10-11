@@ -13,11 +13,22 @@ fn main() -> Result<(), Box<dyn Error>> {
         for (field, role) in [
             ("bg", "bg"),
             ("surface", "surface"),
+            ("surface_raised", "surfaceRaised"),
             ("text", "text"),
             ("muted", "muted"),
             ("border", "border"),
             ("action", "action"),
             ("action_text", "actionText"),
+            ("focus", "focus"),
+            ("selected", "selected"),
+            ("info_text", "infoText"),
+            ("info_bg", "infoBg"),
+            ("success_text", "successText"),
+            ("success_bg", "successBg"),
+            ("warning_text", "warningText"),
+            ("warning_bg", "warningBg"),
+            ("danger_text", "dangerText"),
+            ("danger_bg", "dangerBg"),
         ] {
             let value = tokens["theme"][mode][role]
                 .as_str()
