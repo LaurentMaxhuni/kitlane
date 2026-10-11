@@ -1,0 +1,386 @@
+{
+  "version": "0.1.0",
+  "logoSource": "source/kitlane-original.png",
+  "fontSources": {
+    "Sora": "https://github.com/google/fonts/tree/main/ofl/sora",
+    "Inter": "https://github.com/google/fonts/tree/main/ofl/inter"
+  },
+  "interfaceIcons": "Lucide / MIT",
+  "files": [
+    {
+      "path": "brand/brand-cover.png",
+      "bytes": 40365,
+      "sha256": "4af01df89244d088593fd2373b03fe581fd4835b9c549bd8c9a9888419fb339a"
+    },
+    {
+      "path": "brand/brand-cover.svg",
+      "bytes": 11683,
+      "sha256": "6e9c80bbfcda94f63106ad6590efbdbd67e9932fc560b4e83537de36e4e948af"
+    },
+    {
+      "path": "brand/brand-pattern.svg",
+      "bytes": 3706,
+      "sha256": "2b7695872b7a2eb65a4513b4068b6cef537de2e62963575d2f4b11706e70db72"
+    },
+    {
+      "path": "fonts/Inter-Italic-Variable.ttf",
+      "bytes": 906596,
+      "sha256": "acd98e64795781b2058f07b18475e0ecee2a0fe2b42a49e2f9e37d0d6bf66ce6"
+    },
+    {
+      "path": "fonts/Inter-OFL.txt",
+      "bytes": 4377,
+      "sha256": "5b9321a4298cfeb6b34354164a1c3afc3db114569984c502b9b35d988fd58c57"
+    },
+    {
+      "path": "fonts/Inter-Variable.ttf",
+      "bytes": 876576,
+      "sha256": "29160a80ff49ddcab2c97711247e08b1fab27a484a329ce8b813d820dc559031"
+    },
+    {
+      "path": "fonts/Sora-OFL.txt",
+      "bytes": 4385,
+      "sha256": "ba0b9729c9428ba79a0459ab8ec575791b51509dbec213e383d0316d37fec299"
+    },
+    {
+      "path": "fonts/Sora-Variable.ttf",
+      "bytes": 111400,
+      "sha256": "84ff7096ae3ec6c8be47d906d1a0ba4de7f2ce78c615275c77301964a316e16c"
+    },
+    {
+      "path": "icons/app-icon-1024.png",
+      "bytes": 58983,
+      "sha256": "517631cf5f4df157cc0b7316686630b3ce121867156e60790a81d65a76d20463"
+    },
+    {
+      "path": "icons/app-icon-128.png",
+      "bytes": 4138,
+      "sha256": "5b40502628c4f12546355a857052ad007e45b5b562e563d74c5d6abab22fb5c3"
+    },
+    {
+      "path": "icons/app-icon-16.png",
+      "bytes": 574,
+      "sha256": "bffac07639362e18e222f25326a829f15764cfdc027b0a67fbd484088a3f20aa"
+    },
+    {
+      "path": "icons/app-icon-24.png",
+      "bytes": 873,
+      "sha256": "2cb18fd8c7eb192a68046103a54078cee31e18ebbb51c5ce187916d9ecf918aa"
+    },
+    {
+      "path": "icons/app-icon-256.png",
+      "bytes": 9267,
+      "sha256": "6f0fd56cc23e6a2ebae9a2ae25d1c6577f605a9adc837ec233bc273acfa7d0e5"
+    },
+    {
+      "path": "icons/app-icon-32.png",
+      "bytes": 1115,
+      "sha256": "33053ca316151f525597add5487654afabd0e1223d4b434b22332109816c86e4"
+    },
+    {
+      "path": "icons/app-icon-48.png",
+      "bytes": 1588,
+      "sha256": "3318be4092571f98718277417e7923e730171788b52a33c15066d0c7f66e30a4"
+    },
+    {
+      "path": "icons/app-icon-512.png",
+      "bytes": 22677,
+      "sha256": "458e3976e6f6c00daed35d4e3c4f803ad7e66a13714c27085ae1d40a0c29c93b"
+    },
+    {
+      "path": "icons/app-icon-64.png",
+      "bytes": 2179,
+      "sha256": "c0f3117217ba8aa1042068f243085e15c791828ea76344dd9ef56b6def1397d0"
+    },
+    {
+      "path": "icons/app-icon.icns",
+      "bytes": 98997,
+      "sha256": "965123d694a3c228fe42bfe5eac28eac102ab0e86a580c54ef909a8cc160a4e9"
+    },
+    {
+      "path": "icons/app-icon.ico",
+      "bytes": 19852,
+      "sha256": "a3de702492790b316127c2a1cddbbdbe04b59a8eef5a452aba2eb572af71aa89"
+    },
+    {
+      "path": "icons/app-icon.svg",
+      "bytes": 7441,
+      "sha256": "15b72a6d2798f48e4085cb1a5a6abe7b3281b993d0051149f21782d168548510"
+    },
+    {
+      "path": "icons/tray-icon-16.png",
+      "bytes": 459,
+      "sha256": "1acc7d8fd0ec55a097dd77cfe9df0f0c07e9592d47775a752a0b203db18df402"
+    },
+    {
+      "path": "icons/tray-icon-24.png",
+      "bytes": 642,
+      "sha256": "4fb85b938076b510ba7bcca11786b5f0d9ebcbc259437d323a334ccc206f687e"
+    },
+    {
+      "path": "icons/tray-icon-32.png",
+      "bytes": 841,
+      "sha256": "1211c759b67bc21f768bb635c638048d07f23ab337e169e2b32db66b0cc49600"
+    },
+    {
+      "path": "icons/tray-icon-white-16.png",
+      "bytes": 355,
+      "sha256": "1df3f017b5581149e6e9fbb1ccebfdc3925dc345faec1acb477dc039bb693e70"
+    },
+    {
+      "path": "icons/tray-icon-white-24.png",
+      "bytes": 486,
+      "sha256": "38328015a60b5cbd7703c04cfb41fa0bb16936c967f852ed0037b1126250ccf8"
+    },
+    {
+      "path": "icons/tray-icon-white-32.png",
+      "bytes": 648,
+      "sha256": "81ff8858f0a9da3e02b931554332429157e04a9c83b021571f47ccb3c6eb062c"
+    },
+    {
+      "path": "icons/tray-icon-white.svg",
+      "bytes": 3474,
+      "sha256": "a5bf544cc030c223cd140c2c288c385b73cea83a845649f8a56155f01595db69"
+    },
+    {
+      "path": "icons/tray-icon.svg",
+      "bytes": 3474,
+      "sha256": "763f009ebaa69a398ce7d1f5c08a76e05cf33ff72d18c771f4fd10014204c0c3"
+    },
+    {
+      "path": "logos/kitlane-logo-monochrome-white.png",
+      "bytes": 31758,
+      "sha256": "1d3c777dbb37e91df5046c52bc40166c415db64fd8c1415368f1dc37bdb024ca"
+    },
+    {
+      "path": "logos/kitlane-logo-monochrome-white.svg",
+      "bytes": 11486,
+      "sha256": "fe53a08b28daaac2ae73a5d9cc6bf8496fae600b4db66da72ba85f4f0ba56f8d"
+    },
+    {
+      "path": "logos/kitlane-logo-monochrome.png",
+      "bytes": 43094,
+      "sha256": "35f6af34b23e19274139b1115c519b7b671bd0ca76e12c8358a31900e796bf36"
+    },
+    {
+      "path": "logos/kitlane-logo-monochrome.svg",
+      "bytes": 11486,
+      "sha256": "21e0601e724ce12d0ccba34fdfa203b2384f267184e5b00845aca9ccc33bddbf"
+    },
+    {
+      "path": "logos/kitlane-logo-reversed.png",
+      "bytes": 34769,
+      "sha256": "208036b488c9e1f0838f1bb99e2cd0849887935d5c402dd916bef7d731c70d55"
+    },
+    {
+      "path": "logos/kitlane-logo-reversed.svg",
+      "bytes": 11486,
+      "sha256": "b79e79dd5ede62abb5e60df558dd7fff48c8ecb6893f4bfd39954f5152d93998"
+    },
+    {
+      "path": "logos/kitlane-logo.png",
+      "bytes": 44634,
+      "sha256": "1b8b2e48be31181099bb0712768c5c82e624f9357eb924e59f6fc323b2c537c8"
+    },
+    {
+      "path": "logos/kitlane-logo.svg",
+      "bytes": 11486,
+      "sha256": "be14f19c18d19c28562e102b1d8d8c8825fda035d4bd416267a10de9c7e9559f"
+    },
+    {
+      "path": "logos/kitlane-mark-monochrome.png",
+      "bytes": 16311,
+      "sha256": "959df47943af2f44e6d9c8be0976811be795b967a283a2408f17dba4a657a50c"
+    },
+    {
+      "path": "logos/kitlane-mark-monochrome.svg",
+      "bytes": 3473,
+      "sha256": "6374411982daa79a1d7141d3ab499e690ec06320da69bf0acf80888bfcb8f45c"
+    },
+    {
+      "path": "logos/kitlane-mark-reversed.png",
+      "bytes": 14633,
+      "sha256": "ce77788610beb2c0ef45a5a57b3e2de901b69703af55d841d8958f6189bc6576"
+    },
+    {
+      "path": "logos/kitlane-mark-reversed.svg",
+      "bytes": 3473,
+      "sha256": "f6e78becc98f3345e2a434582410d8d84114f01ba988dcd67c0cd67bf0f1f2e0"
+    },
+    {
+      "path": "logos/kitlane-mark.png",
+      "bytes": 17554,
+      "sha256": "b19152b00d2d7ec23583e2372d5611b405779c9f78a73a070a165439c6f624ae"
+    },
+    {
+      "path": "logos/kitlane-mark.svg",
+      "bytes": 3473,
+      "sha256": "0786061b131789d157cba6970ae262c03bbba4a35d0d70152eea2bc37ffa181a"
+    },
+    {
+      "path": "logos/kitlane-wordmark-reversed.png",
+      "bytes": 34761,
+      "sha256": "6df24526275450be6ad78c80294d8697ba6d89c0a3d58b01b1c536799e54d2ef"
+    },
+    {
+      "path": "logos/kitlane-wordmark-reversed.svg",
+      "bytes": 7649,
+      "sha256": "296f0009ec2bb057cf269b165345da9e0d6c5db8685f02f542030900c28c3270"
+    },
+    {
+      "path": "logos/kitlane-wordmark.png",
+      "bytes": 46099,
+      "sha256": "ecdb39c17464ee755d828759ec03439d6c4f9ddd7f331230950a9b0621a8282c"
+    },
+    {
+      "path": "logos/kitlane-wordmark.svg",
+      "bytes": 7649,
+      "sha256": "d357fe1ab5cc88f4764135f0da303f3666cea4e5243dcc45635da35b9b0d7ca2"
+    },
+    {
+      "path": "README.md",
+      "bytes": 2747,
+      "sha256": "14cd1867b89a7ba703141430d45ef5d93d87b55c7045bfd8e3815dd7e69c0f17"
+    },
+    {
+      "path": "source/brand-board.png",
+      "bytes": 1520747,
+      "sha256": "5627e475eeb7ef7d2b47efcd7786029d787150c5da94a6bc3aef7f670d3e8fa4"
+    },
+    {
+      "path": "source/kitlane-original.png",
+      "bytes": 1133447,
+      "sha256": "d1daaee60973cd8e996b858bd62500e90808aabaf3baa77069c1eb4ada45e9d4"
+    },
+    {
+      "path": "ui-icons/arrow-right.svg",
+      "bytes": 344,
+      "sha256": "12b97a4d2821da556ce7df95f89df46deb94aa711d46b36a848be0de0ac2a7f0"
+    },
+    {
+      "path": "ui-icons/arrow-up.svg",
+      "bytes": 341,
+      "sha256": "df0ff279d41bba93ae6797ef519ba442b895cd5d546fb36f22b7a656c3b05fd1"
+    },
+    {
+      "path": "ui-icons/check-check.svg",
+      "bytes": 358,
+      "sha256": "f288ef6e0b99df1ae65831f12eec033dca233cf2d5b4c0c415d39bd339349374"
+    },
+    {
+      "path": "ui-icons/check.svg",
+      "bytes": 316,
+      "sha256": "538432eec072ceeccf5a7aacf347a2ad2bff9937d203dbd0b4f4245d7accd93c"
+    },
+    {
+      "path": "ui-icons/chevron-down.svg",
+      "bytes": 320,
+      "sha256": "04458777b8a99214cd167dc9a8c8a1e35dcc9373b7577f74d5b5da6418ffcf67"
+    },
+    {
+      "path": "ui-icons/chevron-right.svg",
+      "bytes": 322,
+      "sha256": "fea488a3b60fd7738bbbf8ca98826ef5c0381347c5fd1048d45ee70a75a51cfe"
+    },
+    {
+      "path": "ui-icons/circle-alert.svg",
+      "bytes": 416,
+      "sha256": "2c65a5c03a73d3115ce493779f82af98d94f0d72facf1d97c61ea08566bb401c"
+    },
+    {
+      "path": "ui-icons/circle-slash.svg",
+      "bytes": 369,
+      "sha256": "0ba9d75ba74e676871dafa3147ad573749cd19359427d0bba5f28fe74ec28b37"
+    },
+    {
+      "path": "ui-icons/cloud.svg",
+      "bytes": 352,
+      "sha256": "63d076b99f2fde11de97e9cf79fc701931945bc5c8cc596c5cf55d4439dbe82b"
+    },
+    {
+      "path": "ui-icons/copy.svg",
+      "bytes": 415,
+      "sha256": "6828c476979a7e4d5ae3ac726f8fadbcab066ec53299b7f8422cda321a60a841"
+    },
+    {
+      "path": "ui-icons/download.svg",
+      "bytes": 428,
+      "sha256": "f68a21e11115edc0aef51ac6f8f4618e14d2b92055f1cb9f5d670efc696bea85"
+    },
+    {
+      "path": "ui-icons/external-link.svg",
+      "bytes": 417,
+      "sha256": "15432d67349662d1427ca5b8cc52d4152a9a893a251a842a817de1974a6b5766"
+    },
+    {
+      "path": "ui-icons/info.svg",
+      "bytes": 370,
+      "sha256": "8b0a0b5641a875a2e0d8c04080c55cf6c1808c1f76477acb89958e8da00ba5a1"
+    },
+    {
+      "path": "ui-icons/laptop.svg",
+      "bytes": 410,
+      "sha256": "76082a476fdd7c6762dc750d75c51c15952e08bb4bad75bebce87403bfea9e77"
+    },
+    {
+      "path": "ui-icons/LICENSE",
+      "bytes": 880,
+      "sha256": "1e7290b35280a048667bbf0ebabac1c7fd52a75300e8b2946ac165715997f2bc"
+    },
+    {
+      "path": "ui-icons/loader-circle.svg",
+      "bytes": 336,
+      "sha256": "44ad0f822a89b28a3feecf7276686c818a92a4a9c77cc51404c58929e30f0f3a"
+    },
+    {
+      "path": "ui-icons/monitor.svg",
+      "bytes": 425,
+      "sha256": "3ef31ab3ab45c174485e0c1dfc3bd3b54ae51cb74df8230a0e136d78ca580efd"
+    },
+    {
+      "path": "ui-icons/moon.svg",
+      "bytes": 334,
+      "sha256": "5e5c866dd82fbea5c03e00c778fa283c6efc8c37db3b7937824fe0b8ad5382f7"
+    },
+    {
+      "path": "ui-icons/package.svg",
+      "bytes": 539,
+      "sha256": "d2bb2edb3e9acc1d00535af3596837558b761b24d8933070d5565b71eeaac74f"
+    },
+    {
+      "path": "ui-icons/plus.svg",
+      "bytes": 332,
+      "sha256": "b29207ee8f5cc0e829c0bab2e5b223fc88687599c6bd40b94ba35f52327615d6"
+    },
+    {
+      "path": "ui-icons/refresh-cw.svg",
+      "bytes": 474,
+      "sha256": "d63b359b0fe05e03cff8aaa7acf82f9569733e83f7fb4742d583a086972c4bb0"
+    },
+    {
+      "path": "ui-icons/search.svg",
+      "bytes": 351,
+      "sha256": "e11a04d51c122a8a759211424920efc65fa36b7ab06237c34ef90317d920ddf9"
+    },
+    {
+      "path": "ui-icons/settings.svg",
+      "bytes": 904,
+      "sha256": "ceea1a72d04b112291222ba9ad0779a12d47d816079fe4174900c724f360b55c"
+    },
+    {
+      "path": "ui-icons/shield-check.svg",
+      "bytes": 499,
+      "sha256": "0e9116845c6053cd3bfa09a3e4c232f5fb28c3abab75792287d2aed31c24ebe7"
+    },
+    {
+      "path": "ui-icons/sun.svg",
+      "bytes": 560,
+      "sha256": "f067e7494a29d825168ef4285d1eb66ef3cd57c33778fd67528247e377a5ff89"
+    },
+    {
+      "path": "ui-icons/x.svg",
+      "bytes": 333,
+      "sha256": "0f38855d9d5775c10960ae53e46b745f77914b43f78c43bf8abc39f4d5e06de1"
+    }
+  ]
+}
