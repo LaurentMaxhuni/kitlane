@@ -1,0 +1,22 @@
+{
+  "name": "@kitlane/design-system",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Kitlane brand assets, design tokens, component styles, and interactive reference.",
+  "exports": {
+    ".": "./src/index.js",
+    "./styles": "./styles/index.css",
+    "./tokens": "./tokens/tokens.json"
+  },
+  "scripts": {
+    "dev": "node scripts/serve.mjs",
+    "build:tokens": "node scripts/build-tokens.mjs",
+    "build:assets": "node scripts/export-assets.mjs",
+    "check": "node scripts/check.mjs"
+  },
+  "devDependencies": {
+    "lucide-static": "^0.468.0",
+    "sharp": "^0.34.5"
+  }
+}
