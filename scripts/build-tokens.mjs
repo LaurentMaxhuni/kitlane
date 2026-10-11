@@ -1,0 +1,10 @@
+import { readFile, writeFile, mkdir } from 'node:fs/promises';
+const tokens=JSON.parse(await readFile(new URL('../tokens/tokens.json',import.meta.url),'utf8'));
+const kebab=s=>s.replace(/[A-Z]/g,m=>'-'+m.toLowerCase());
+const cssValue=(value,type)=>type==='fontFamily'?value.map(v=>v.includes(' ')?`"${v}"`:v).join(', '):type==='cubicBezier'?`cubic-bezier(${value.join(', ')})`:type==='shadow'?`${['offsetX','offsetY','blur','spread'].map(k=>`${value[k].value}${value[k].unit}`).join(' ')} ${value.color}`:typeof value==='object'?`${value.value}${value.unit}`:value;
+const lines=[];
+for(const [group,items] of Object.entries(tokens)) if(group!=='theme') for(const [key,token] of Object.entries(items)) if(!key.startsWith('$')) lines.push(`  --kl-${kebab(group)}-${kebab(key)}: ${cssValue(token.$value,token.$type||items.$type)};`);
+const semantic=theme=>Object.entries(theme).map(([key,value])=>`  --kl-${kebab(key)}: ${value.startsWith('{')?`var(--kl-${value.slice(1,-1).split('.').map(kebab).join('-')})`:value};`).join('\n');
+await mkdir(new URL('../styles/',import.meta.url),{recursive:true});
+await writeFile(new URL('../styles/tokens.css',import.meta.url),`/* Generated from tokens/tokens.json. Run pnpm build:tokens after changes. */\n:root {\n  color-scheme: light;\n${lines.join('\n')}\n${semantic(tokens.theme.light)}\n}\n\n[data-theme="dark"] {\n  color-scheme: dark;\n${semantic(tokens.theme.dark)}\n}\n`);
+console.log('Generated styles/tokens.css from the design token source.');
