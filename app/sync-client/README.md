@@ -12,7 +12,13 @@ Each HTTP request has a 10-second deadline and 2-second connect deadline; each s
 
 Production vaults use Windows Credential Manager, macOS Keychain, and Linux keyutils backed by Secret Service. Linux builds require DBus development libraries (`libdbus-1-dev` on Debian/Ubuntu); runtime requires an unlocked Secret Service and usable session keyring. Unsupported platforms or unavailable stores fail closed. There is no plaintext credential fallback. OS permission/unlock dialogs can outlast HTTP deadlines. Windows compilation and protocol tests do not prove macOS/Linux keychain access; native vault smoke tests require those platforms and consenting users.
 
-Tests inject `MemoryVault` via `Client::with_vault`, without reading or writing the user's credential store. Tests cover the real Rust service and scripted local HTTP failures, enrollment uncertainty, vault failure, namespace isolation, authorization, redirects, revision conflicts, ambiguous write recovery, peer validation, size bounds and old/new inventory wire compatibility.
+Protocol tests inject `MemoryVault` via `Client::with_vault`, without reading or writing the user's credential store. Tests cover the real Rust service and scripted local HTTP failures, enrollment uncertainty, vault failure, namespace isolation, authorization, redirects, revision conflicts, ambiguous write recovery, peer validation, size bounds and old/new inventory wire compatibility.
+
+An opt-in native vault test creates one unique test entry and removes it afterward (including cleanup on unwinding). It passed on Windows; macOS/Linux vault runtime checks remain pending:
+
+```powershell
+cargo test -p kitlane-sync-client native_credential_store_round_trip -- --ignored
+```
 
 ```powershell
 cargo test --manifest-path app/sync-client/Cargo.toml

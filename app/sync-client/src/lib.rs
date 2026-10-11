@@ -414,3 +414,29 @@ fn decode<T: DeserializeOwned>(response: Response, remaining: &mut usize) -> Res
     *remaining -= bytes.len();
     serde_json::from_slice(&bytes).map_err(|_| Error::InvalidResponse)
 }
+
+#[cfg(all(test, any(windows, target_os = "macos", target_os = "linux")))]
+mod native_vault_test {
+    use super::*;
+
+    #[test]
+    #[ignore = "opt-in native credential-store test; creates and removes one unique test entry"]
+    fn native_credential_store_round_trip() {
+        let account = format!("kitlane-test-{}", kitlane_core::new_device_id());
+        let vault = OsVault;
+        assert!(vault.get(&account).unwrap().is_none());
+        struct Cleanup<'a>(&'a str);
+        impl Drop for Cleanup<'_> {
+            fn drop(&mut self) {
+                let _ = OsVault.delete(self.0);
+            }
+        }
+        let _cleanup = Cleanup(&account);
+        let token = Zeroizing::new("0".repeat(64));
+        vault.set(&account, &token).unwrap();
+        let retrieved = Zeroizing::new(vault.get(&account).unwrap().unwrap());
+        assert!(retrieved.as_str() == token.as_str());
+        vault.delete(&account).unwrap();
+        assert!(vault.get(&account).unwrap().is_none());
+    }
+}
