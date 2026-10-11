@@ -1,0 +1,29 @@
+[package]
+name = "kitlane-sync-server"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.95"
+publish = false
+
+# Removed when orchestrator adds this service to the parent workspace.
+[workspace]
+
+[dependencies]
+kitlane-core = { path = "../core" }
+axum = "0.8"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "signal", "sync"] }
+redb = "4.3"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+rand_core = { version = "0.9", features = ["os_rng"] }
+sha2 = "0.10"
+subtle = "2.6"
+hex = "0.4"
+uuid = "1"
+
+[dev-dependencies]
+tower = { version = "0.5", features = ["util"] }
+tempfile = "3"
+
+[lints.rust]
+unsafe_code = "forbid"
