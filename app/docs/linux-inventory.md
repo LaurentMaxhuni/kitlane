@@ -17,7 +17,7 @@ Each subprocess has a 10-second deadline, 8 MiB stdout limit, 64 KiB stderr limi
 
 Coverage excludes runtimes, named system installations, other users, distribution packages, AppImages, portable apps, and unregistered apps. Successful empty inventory means only that the two selected scopes reported no applications.
 
-Fixture tests run on Windows and cover malformed/truncated columns, UTF-8, controls, metadata bounds, row/byte limits, optional fields, duplicates, variant IDs, partial coverage, and bounded stream reads. Native Linux executable trust, procfs pipe polling, process exit/timeout cleanup, and real Flatpak output require validation on Linux; unavailable in this Windows development environment.
+Fixture tests run on Windows and cover malformed/truncated columns, UTF-8, controls, metadata bounds, row/byte limits, optional fields, duplicates, variant IDs, partial coverage, and bounded stream reads. The native Linux code also passes Clippy cross-checking for x86_64-unknown-linux-gnu. Native executable trust, procfs pipe polling, process exit/timeout cleanup, and real Flatpak output still require runtime validation on Linux; unavailable in this Windows development environment.
 
 Sources checked 2026-10-11: [official Flatpak command reference](https://docs.flatpak.org/en/latest/flatpak-command-reference.html#flatpak-list), [official Flatpak list implementation](https://github.com/flatpak/flatpak/blob/main/app/flatpak-builtins-list.c). Documentation establishes `--app`, scope flags, columns, and full column values; implementation confirms partial refs and diagnostics when deployments cannot be inspected.
 

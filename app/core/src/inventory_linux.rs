@@ -77,7 +77,7 @@ mod records {
                 return Err(InventoryError::LimitExceeded);
             }
             // Flatpak writes tab-separated, headerless rows when stdout is a pipe.
-            let fields: Vec<_> = line.split('\t').collect();
+            let fields: Vec<_> = line.split('\t').take(6).collect();
             if fields.len() != 5 {
                 return Err(failure("Flatpak returned an invalid column layout"));
             }
@@ -239,11 +239,11 @@ mod native {
     }
 
     fn nonblocking_pipe(pipe: &impl AsRawFd) -> Result<File, InventoryError> {
-        // Linux O_NONBLOCK (octal 04000). Reopening our own procfs pipe descriptor
+        // Reopening our own procfs pipe descriptor
         // creates a nonblocking reader without unsafe fcntl or background threads.
         OpenOptions::new()
             .read(true)
-            .custom_flags(0o4000)
+            .custom_flags(libc::O_NONBLOCK)
             .open(format!("/proc/self/fd/{}", pipe.as_raw_fd()))
             .map_err(|_| failure("Flatpak output pipes require accessible procfs"))
     }
@@ -453,6 +453,7 @@ mod tests {
 
     #[test]
     fn rejects_byte_and_row_limits() {
+        assert!(parse(&vec![b'\t'; MAX_STDOUT], InstallScope::User).is_err());
         assert_eq!(
             parse(&vec![b' '; MAX_STDOUT + 1], InstallScope::User),
             Err(InventoryError::LimitExceeded)
