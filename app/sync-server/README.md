@@ -28,7 +28,7 @@ All bodies/responses use JSON with snake_case fields. Unknown request fields are
 | --- | --- | --- | --- |
 | `POST /v1/pairing-grants` | Owner only | `{"device": DeviceInfo}` | 200 `{"pairing_token": string, "expires_at_unix_secs": integer, "device": DeviceInfo}` |
 | `POST /v1/devices/{id}/pairing-grants` | Owner only | Empty/no body | 200 same pairing-grant response; recover an active device credential |
-| `POST /v1/enroll` | Single-use initial/recovery grant in body | `{"pairing_token": string}` | 201 `{"device_token": string, "device": DeviceInfo}` |
+| `POST /v1/enroll` | Single-use initial/recovery grant in body | `{"pairing_token": string, "expected_device": DeviceInfo?}` | 201 `{"device_token": string, "device": DeviceInfo}` |
 | `GET /v1/devices` | Owner or active device | None | 200 array of `{"device": DeviceInfo, "revision": integer}` |
 | `DELETE /v1/devices/{id}` | Owner only | None | 204; revoke token, remove current snapshot, omit device from roster |
 | `PUT /v1/snapshots/{id}` | That active device only | `{"revision": integer, "snapshot": InventorySnapshot}` | 204 |
@@ -46,6 +46,8 @@ All bodies/responses use JSON with snake_case fields. Unknown request fields are
   }
 }
 ```
+
+Enrollment optionally accepts `expected_device` containing the complete local `DeviceInfo` from the client. When supplied, it must pass shared identity validation and exactly match the UUID, name, platform, and architecture fixed by the grant. Invalid or mismatched expected metadata returns 400 before any grant consumption, enrollment, or credential rotation; the same grant can be retried with correct metadata. Existing clients may omit the field. Clients should always supply it and still verify returned device metadata before saving credentials.
 
 Pairing grants contain 256 bits of OS randomness, expire after 300 seconds, and enroll exactly once even under concurrent requests. An enrolled device token also contains 256 random bits; only its SHA-256 hash is persisted. Hash comparisons use `subtle` constant-time equality. Grants, device credentials, tombstones, revisions, and snapshots persist transactionally in redb. The owner must transfer the one-time grant through a trusted channel; there is no short numeric pairing code or unauthenticated grant issuance. A grant holder is authorized to enroll the identity fixed by that grant.
 
@@ -82,7 +84,7 @@ JSON bodies are limited to 2 MiB; shared validation also caps 10,000 apps and 64
 
 1. Obtain explicit owner consent and configured service transport. Keep local inventory local by default.
 2. Pair using the desktop's persisted canonical UUID and shown device metadata. Present the single-owner read-sharing policy before enrollment.
-3. Exchange the grant exactly once. Put the returned device token in an OS credential store; never fall back to plaintext disk or ship owner credentials. If the response is lost or secure storage fails after enrollment, retain the local UUID and request an owner-issued recovery grant through `/v1/devices/{id}/pairing-grants`; exchange that grant to rotate credentials and retry secure storage. A revoked ID cannot recover.
+3. Exchange the grant with `expected_device` set to the complete local device metadata, then verify the returned identity. Put the returned device token in an OS credential store; never fall back to plaintext disk or ship owner credentials. If the response is lost or secure storage fails after enrollment, retain the local UUID and request an owner-issued recovery grant through `/v1/devices/{id}/pairing-grants`; exchange that grant to rotate credentials and retry secure storage. A revoked ID cannot recover.
 4. Read roster revision, then submit a validated local snapshot with the next revision. On ambiguous timeout, read current server state before choosing a revision; do not blindly replay writes.
 5. Treat 401 as revoked/expired enrollment requiring user action. Apply bounded retries/backoff to 503/offline failures, and refresh revision on 409. Never interpret synced inventory as executable commands.
 
@@ -95,6 +97,6 @@ cargo test --manifest-path sync-server/Cargo.toml
 cargo clippy --manifest-path sync-server/Cargo.toml --all-targets -- -D warnings
 ```
 
-Tests cover unauthenticated/bad tokens, owner/device authorization, concurrent grant reuse and expiry, revocation, cross-device writes, metadata and canonical ID validation, oversized bodies, stale/skipped revisions, pending/concurrent request bounds, canceled-caller blocking-work bounds, restart persistence, owner pinning, unrelated/schema-less file preservation, abandoned initialization retry, and exclusive publication preservation, owner-only recovery, retained identity/snapshot/revision, old-token invalidation, recovery races/revocation, and backward-compatible persisted grants. This is functional validation, not a completed security audit.
+Tests cover unauthenticated/bad tokens, owner/device authorization, concurrent grant reuse and expiry, revocation, cross-device writes, metadata and canonical ID validation, oversized bodies, stale/skipped revisions, pending/concurrent request bounds, canceled-caller blocking-work bounds, restart persistence, owner pinning, unrelated/schema-less file preservation, abandoned initialization retry, and exclusive publication preservation, owner-only recovery, retained identity/snapshot/revision, old-token invalidation, recovery races/revocation, backward-compatible persisted grants, and expected-device validation/nonconsumption for initial enrollment and recovery. This is functional validation, not a completed security audit.
 
 Implementation uses current primary references: [axum router](https://docs.rs/axum/0.8.9/axum/routing/struct.Router.html), [body limits](https://docs.rs/axum/0.8.9/axum/extract/struct.DefaultBodyLimit.html), [redb transactions](https://docs.rs/redb/4.3.0/redb/), [OS randomness](https://docs.rs/rand_core/0.9.5/rand_core/struct.OsRng.html), [SHA-256](https://docs.rs/sha2/0.10.9/sha2/), [constant-time equality](https://docs.rs/subtle/2.6.1/subtle/trait.ConstantTimeEq.html).

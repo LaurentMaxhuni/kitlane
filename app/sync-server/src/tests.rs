@@ -941,3 +941,136 @@ async fn older_persisted_pairing_grants_default_to_initial_enrollment() {
         StatusCode::CONFLICT
     );
 }
+
+#[tokio::test]
+async fn expected_device_mismatch_or_invalid_identity_does_not_consume_enrollment_grant() {
+    let (_dir, service) = fixture();
+    let d = device(1);
+    let pairing = grant(&service, &d).await;
+    let mut wrong_id = d.clone();
+    wrong_id.id = device(2).id;
+    let mut wrong_name = d.clone();
+    wrong_name.name = "Wrong device".into();
+    let mut wrong_architecture = d.clone();
+    wrong_architecture.architecture = "aarch64".into();
+    let mut wrong_platform = d.clone();
+    wrong_platform.platform = Platform::Linux;
+    let mut malformed_id = d.clone();
+    malformed_id.id = "not-a-uuid".into();
+    for expected in [
+        wrong_id,
+        wrong_name,
+        wrong_architecture,
+        wrong_platform,
+        malformed_id,
+    ] {
+        assert_eq!(
+            request(
+                &service,
+                "POST",
+                "/v1/enroll",
+                None,
+                json!({"pairing_token":pairing, "expected_device":expected})
+            )
+            .await
+            .0,
+            StatusCode::BAD_REQUEST
+        );
+    }
+    assert_eq!(
+        request(&service, "GET", "/v1/devices", Some(OWNER), Value::Null)
+            .await
+            .1,
+        json!([])
+    );
+    let (status, response) = request(
+        &service,
+        "POST",
+        "/v1/enroll",
+        None,
+        json!({"pairing_token":pairing, "expected_device":d}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    assert_eq!(response["device"], json!(d));
+}
+
+#[tokio::test]
+async fn recovery_expected_device_mismatch_preserves_token_and_grant_until_correct_retry() {
+    let (_dir, service) = fixture();
+    let d = device(1);
+    let old_token = enroll_device(&service, &d).await;
+    let snapshot_path = format!("/v1/snapshots/{}", d.id);
+    assert_eq!(
+        request(
+            &service,
+            "PUT",
+            &snapshot_path,
+            Some(&old_token),
+            update(&d, 1)
+        )
+        .await
+        .0,
+        StatusCode::NO_CONTENT
+    );
+    let pairing = recovery_grant(&service, &d).await;
+    let mut wrong = d.clone();
+    wrong.name = "Unexpected metadata".into();
+    assert_eq!(
+        request(
+            &service,
+            "POST",
+            "/v1/enroll",
+            None,
+            json!({"pairing_token":pairing, "expected_device":wrong})
+        )
+        .await
+        .0,
+        StatusCode::BAD_REQUEST
+    );
+    assert_eq!(
+        request(
+            &service,
+            "GET",
+            &snapshot_path,
+            Some(&old_token),
+            Value::Null
+        )
+        .await
+        .1,
+        update(&d, 1)
+    );
+    let (status, response) = request(
+        &service,
+        "POST",
+        "/v1/enroll",
+        None,
+        json!({"pairing_token":pairing, "expected_device":d}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    assert_eq!(
+        request(
+            &service,
+            "GET",
+            "/v1/devices",
+            Some(&old_token),
+            Value::Null
+        )
+        .await
+        .0,
+        StatusCode::UNAUTHORIZED
+    );
+    assert_eq!(
+        request(
+            &service,
+            "GET",
+            &snapshot_path,
+            Some(response["device_token"].as_str().unwrap()),
+            Value::Null
+        )
+        .await
+        .1,
+        update(&d, 1)
+    );
+}

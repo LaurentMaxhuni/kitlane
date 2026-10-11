@@ -73,6 +73,8 @@ struct PairingRequest {
 #[serde(deny_unknown_fields)]
 struct EnrollmentRequest {
     pairing_token: String,
+    #[serde(default)]
+    expected_device: Option<DeviceInfo>,
 }
 #[derive(Serialize)]
 struct PairingResponse {
@@ -474,6 +476,9 @@ async fn enroll(
     Json(request): Json<EnrollmentRequest>,
 ) -> Result<(StatusCode, Json<EnrollmentResponse>), ApiError> {
     let hash = token_hash(&request.pairing_token)?;
+    if let Some(expected) = &request.expected_device {
+        expected.validate().map_err(bad)?;
+    }
     service
         .transaction(move |tx| {
             let timestamp = now()?;
@@ -490,6 +495,13 @@ async fn enroll(
                 }
             }
             let (key, grant) = matched.ok_or_else(unauthorized)?;
+            if request
+                .expected_device
+                .as_ref()
+                .is_some_and(|expected| expected != &grant.device)
+            {
+                return Err(bad("Expected device metadata does not match pairing grant"));
+            }
             let mut devices = tx.open_table(DEVICES).map_err(internal)?;
             let existing: Option<DeviceRecord> = devices
                 .get(grant.device.id.as_str())
