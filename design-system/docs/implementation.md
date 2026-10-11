@@ -2,9 +2,9 @@
 
 ## Package boundary
 
-This is the design-system foundation for Kitlane. It can be used by a web frontend, a Tauri webview, or an Electron renderer. Native installation, account sync, and software matching belong to the future app implementation.
+Kitlane's app will be pure Rust. Reuse fonts, logos, desktop icons, and semantic values from `tokens/tokens.json` in its native UI implementation. Cargo manages app dependencies; Node and pnpm are scoped to this design reference and asset tooling. Native installation, account sync, and software matching belong to the future app implementation.
 
-The system currently supplies CSS components and DOM helpers, without choosing a React/Vue/Svelte architecture. Wrap the documented semantic markup in your chosen framework. Keep native element semantics and the existing class contracts.
+CSS components and DOM helpers support the marketing website and browser reference. Preserve HTML semantics and existing class contracts there. For Rust UI components, follow documented visual states and accessibility guidance using the chosen native toolkit.
 
 ## Tokens and themes
 

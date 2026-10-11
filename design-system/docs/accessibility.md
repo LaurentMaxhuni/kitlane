@@ -26,4 +26,4 @@ Respect `prefers-reduced-motion`. Motion only clarifies changes and never carrie
 
 ## Desktop integration
 
-When implementing the native shell, check OS keyboard conventions, accessible window titles, system contrast preferences, screen-reader behavior through the webview, and tray-icon legibility. Do not assume browser verification covers every desktop platform.
+When implementing the Rust app, check OS keyboard conventions, accessible window titles, system contrast preferences, screen-reader behavior through the native toolkit, and tray-icon legibility. Verify native accessibility on each supported desktop platform separately from the browser reference.

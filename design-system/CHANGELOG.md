@@ -3,7 +3,7 @@
 ## Unreleased
 
 - Consolidated the package, assets, documentation, and reference in `design-system/` for shared use by the app and marketing website.
-- Added root workspace commands and documented frontend package imports.
+- Scoped Node dependencies, pnpm configuration, and commands to `design-system/`; documented the pure Rust app and separate marketing website.
 
 ## 0.1.0 — 2026-10-11
 

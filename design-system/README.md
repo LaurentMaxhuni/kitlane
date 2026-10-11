@@ -1,8 +1,10 @@
 # Kitlane design system
 
-Kitlane's brand identity, local fonts, vector logos, desktop icons, semantic design tokens, component styles, and interactive reference. This package is independent of the future desktop app framework.
+Kitlane's brand identity, local fonts, vector logos, desktop icons, semantic design tokens, component styles, and interactive reference. The pure Rust app shares assets, tokens, and design guidance; CSS and DOM helpers serve the marketing website and reference.
 
 ## Open the reference
+
+Run these commands from `design-system/`:
 
 ```powershell
 pnpm install
@@ -29,13 +31,13 @@ Node.js 22 or newer is recommended. The reference server has no runtime package 
 | `index.html`, `demo/` | The browsable reference and its example interactions |
 | `scripts/` | Local server, asset exports, token generation, and integrity checks |
 
-## Use in a frontend
+## Use in the marketing website
 
 ```css
-@import '@kitlane/design-system/styles';
+@import './path/to/design-system/styles/index.css';
 ```
 
-Add `kl-root` to your app's top-level element and set `data-theme="light"` or `data-theme="dark"` on the document root. Use semantic variables such as `var(--kl-text)`, `var(--kl-surface)`, and `var(--kl-border)` for interface styling.
+Add `kl-root` to your website's top-level element and set `data-theme="light"` or `data-theme="dark"` on the document root. Use semantic variables such as `var(--kl-text)`, `var(--kl-surface)`, and `var(--kl-border)` for interface styling.
 
 ```html
 <main class="kl-root">
@@ -45,14 +47,14 @@ Add `kl-root` to your app's top-level element and set `data-theme="light"` or `d
 ```
 
 ```js
-import { setTheme, initTabs, toast } from '@kitlane/design-system';
+import { setTheme, initTabs, toast } from './path/to/design-system/src/index.js';
 const cleanup = setTheme('system');
 initTabs(document.getElementById('platform-tabs'));
 toast('Your app profile is synced.');
 // Call cleanup() when the theme controller is replaced or unmounted.
 ```
 
-Add `"@kitlane/design-system": "workspace:*"` to each frontend's dependencies. Keep the CSS and asset paths together, or adjust the font URLs when copying into an app's public assets. See [Implementation](docs/implementation.md) for integration details.
+Keep CSS and asset paths together, or adjust font URLs when copying into the website's public assets. The Rust app uses assets and token values through its native implementation. See [Implementation](docs/implementation.md) for integration details.
 
 ## Update the system
 
