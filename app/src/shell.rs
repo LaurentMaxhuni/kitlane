@@ -305,70 +305,129 @@ mod tests {
 
     #[test]
     fn all_pages_render_in_both_themes_without_continuous_repaint() {
-        let ctx = egui::Context::default();
-        crate::theme::install_fonts(&ctx);
-        for dark in [false, true] {
-            crate::theme::apply(&ctx, dark);
-            for page in [Page::Library, Page::Devices, Page::Settings] {
-                let mut app = KitlaneApp {
-                    page,
-                    dark,
-                    ..Default::default()
-                };
-                app.set_snapshot(InventorySnapshot {
-                    device: DeviceInfo {
-                        id: kitlane_core::new_device_id(),
-                        name: "Test device".into(),
-                        platform: Platform::Windows,
-                        architecture: "x86_64".into(),
-                    },
-                    scanned_at_unix_secs: 1,
-                    apps: vec![kitlane_core::model::InstalledApp {
-                        id: "vlc-test".into(),
-                        name: "VLC media player".into(),
-                        publisher: Some("VideoLAN".into()),
-                        version: Some("3.0".into()),
-                        scope: kitlane_core::model::InstallScope::Machine,
-                        source: kitlane_core::model::InventorySource::WindowsRegistry,
-                        native_id: None,
-                        origin: None,
-                    }],
-                    warnings: vec!["Partial inventory coverage".into()],
-                });
-                assert!(matches!(app.matches[0], MatchOutcome::Matched(_)));
-                let mut peer = app.snapshot.clone().unwrap();
-                app.device = Some(peer.device.clone());
-                peer.device.id = kitlane_core::new_device_id();
-                peer.device.name = "Peer device".into();
-                peer.apps[0].name = "Notepad++ (64-bit x64)".into();
-                peer.apps[0].publisher = Some("Notepad++ Team".into());
-                app.peers = vec![peer];
-                app.rebuild_plans();
-                assert_eq!(app.plans.len(), 1);
-                let input = || egui::RawInput {
-                    screen_rect: Some(egui::Rect::from_min_size(
-                        egui::Pos2::ZERO,
-                        egui::vec2(480.0, 720.0),
-                    )),
-                    ..Default::default()
-                };
-                let mut output = ctx.run_ui(input(), |ui| {
-                    egui::CentralPanel::default().show(ui, |ui| app.content(ui));
-                });
-                for _ in 0..4 {
-                    output.textures_delta.clear();
-                    output = ctx.run_ui(input(), |ui| {
-                        egui::CentralPanel::default().show(ui, |ui| app.content(ui));
+        for width in [480.0, 900.0, 1440.0] {
+            let ctx = egui::Context::default();
+            egui_extras::install_image_loaders(&ctx);
+            crate::theme::install_fonts(&ctx);
+            for dark in [false, true] {
+                crate::theme::apply(&ctx, dark);
+                for page in [Page::Library, Page::Devices, Page::Settings] {
+                    let mut app = KitlaneApp {
+                        page,
+                        dark,
+                        ..Default::default()
+                    };
+                    app.set_snapshot(InventorySnapshot {
+                        device: DeviceInfo {
+                            id: kitlane_core::new_device_id(),
+                            name: "Test device".into(),
+                            platform: Platform::Windows,
+                            architecture: "x86_64".into(),
+                        },
+                        scanned_at_unix_secs: 1,
+                        apps: vec![kitlane_core::model::InstalledApp {
+                            id: "vlc-test".into(),
+                            name: "VLC media player".into(),
+                            publisher: Some("VideoLAN".into()),
+                            version: Some("3.0".into()),
+                            scope: kitlane_core::model::InstallScope::Machine,
+                            source: kitlane_core::model::InventorySource::WindowsRegistry,
+                            native_id: None,
+                            origin: None,
+                        }],
+                        warnings: vec!["Partial inventory coverage".into()],
                     });
+                    assert!(matches!(app.matches[0], MatchOutcome::Matched(_)));
+                    let mut peer = app.snapshot.clone().unwrap();
+                    app.device = Some(peer.device.clone());
+                    peer.device.id = kitlane_core::new_device_id();
+                    peer.device.name = "Peer device".into();
+                    peer.apps[0].name = "Notepad++ (64-bit x64)".into();
+                    peer.apps[0].publisher = Some("Notepad++ Team".into());
+                    app.peers = vec![peer];
+                    app.rebuild_plans();
+                    assert_eq!(app.plans.len(), 1);
+                    let input = || egui::RawInput {
+                        screen_rect: Some(egui::Rect::from_min_size(
+                            egui::Pos2::ZERO,
+                            egui::vec2(width, 720.0),
+                        )),
+                        ..Default::default()
+                    };
+                    let mut output = ctx.run_ui(input(), |ui| {
+                        app.content(ui);
+                    });
+                    for frame in 0..8 {
+                        output.textures_delta.clear();
+                        let mut timed_input = input();
+                        timed_input.time = Some(frame as f64 + 1.0);
+                        output = ctx.run_ui(timed_input, |ui| {
+                            app.content(ui);
+                        });
+                    }
+                    output.textures_delta.clear();
+                    assert!(!output.shapes.is_empty());
+                    assert!(
+                        output.viewport_output[&egui::ViewportId::ROOT].repaint_delay
+                            > std::time::Duration::ZERO
+                    );
                 }
-                output.textures_delta.clear();
-                assert!(!output.shapes.is_empty());
-                assert!(
-                    output.viewport_output[&egui::ViewportId::ROOT].repaint_delay
-                        > std::time::Duration::ZERO
-                );
             }
         }
+    }
+
+    #[test]
+    fn keyboard_navigation_and_appearance_work_without_a_worker() {
+        let ctx = egui::Context::default();
+        crate::theme::install_fonts(&ctx);
+        crate::theme::apply(&ctx, false);
+        egui_extras::install_image_loaders(&ctx);
+        let mut app = KitlaneApp::preview(0, false, "normal");
+        let mut time = 0.0;
+        let mut press = |app: &mut KitlaneApp, key: Option<egui::Key>| {
+            time += 1.0;
+            let mut input = egui::RawInput {
+                time: Some(time),
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(1440.0, 900.0),
+                )),
+                ..Default::default()
+            };
+            if let Some(key) = key {
+                input.events.push(egui::Event::Key {
+                    key,
+                    physical_key: Some(key),
+                    pressed: true,
+                    repeat: false,
+                    modifiers: Default::default(),
+                });
+                input.events.push(egui::Event::Key {
+                    key,
+                    physical_key: Some(key),
+                    pressed: false,
+                    repeat: false,
+                    modifiers: Default::default(),
+                });
+            }
+            let mut output = ctx.run_ui(input, |ui| app.content(ui));
+            output.textures_delta.clear();
+        };
+        press(&mut app, None);
+        press(&mut app, Some(egui::Key::Tab));
+        assert!(ctx.memory(|memory| memory.focused()).is_some());
+        press(&mut app, Some(egui::Key::Tab));
+        press(&mut app, Some(egui::Key::Enter));
+        assert!(app.page == Page::Devices);
+        press(&mut app, Some(egui::Key::Tab));
+        press(&mut app, Some(egui::Key::Enter));
+        assert!(app.page == Page::Settings);
+        press(&mut app, Some(egui::Key::Tab));
+        press(&mut app, Some(egui::Key::Tab));
+        press(&mut app, Some(egui::Key::Enter));
+        assert!(app.dark);
+        assert!(app.worker.is_none());
+        assert!(app.sync.pairing_token.is_empty());
     }
 
     #[test]
