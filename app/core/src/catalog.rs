@@ -54,6 +54,9 @@ pub struct Product {
     /// Validated in Windows, macOS, Linux order.
     pub platforms: [PlatformSupport; 3],
     match_rules: Vec<MatchRule>,
+    /// Optional in schema v1 for backward compatibility with Windows-only catalogs.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    native_match_rules: Vec<NativeMatchRule>,
 }
 
 impl Product {
@@ -74,8 +77,16 @@ struct MatchRule {
     evidence: Vec<Evidence>,
 }
 
-/// `Matched` means registry strings associated with a reviewed catalog entry.
-/// Registry strings can be forged; this does not verify executable signatures.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct NativeMatchRule {
+    source: InventorySource,
+    native_id: String,
+    evidence: Vec<Evidence>,
+}
+
+/// `Matched` means source metadata associated with a reviewed catalog entry.
+/// Metadata can be forged; this does not verify executable signatures or origin.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum MatchOutcome {
     Matched(Box<Product>),
@@ -85,6 +96,7 @@ pub enum MatchOutcome {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum UnknownReason {
     MissingPublisher,
+    MissingNativeId,
     UnrecognizedMetadata,
     UnsupportedInventorySource,
     InvalidMetadata,
@@ -94,7 +106,10 @@ impl UnknownReason {
     pub fn label(self) -> &'static str {
         match self {
             Self::MissingPublisher => "Unknown identity: publisher missing",
-            Self::UnrecognizedMetadata => "Unknown identity: no reviewed name and publisher pair",
+            Self::MissingNativeId => "Unknown identity: native identifier missing",
+            Self::UnrecognizedMetadata => {
+                "Unknown identity: no reviewed source metadata association"
+            }
             Self::UnsupportedInventorySource => "Unknown identity: inventory source not reviewed",
             Self::InvalidMetadata => "Unknown identity: invalid inventory metadata",
         }
@@ -130,7 +145,7 @@ impl Catalog {
         Self::from_json(BUNDLED)
     }
 
-    fn from_json(json: &str) -> Result<Self, CatalogError> {
+    pub(crate) fn from_json(json: &str) -> Result<Self, CatalogError> {
         if json.len() > MAX_CATALOG_BYTES {
             return Err(CatalogError("byte limit exceeded".into()));
         }
@@ -151,6 +166,7 @@ impl Catalog {
         }
         let mut ids = HashSet::new();
         let mut pairs = HashSet::new();
+        let mut native_ids = HashSet::new();
         for product in &self.products {
             if !valid_text(&product.id, 64)
                 || !product
@@ -162,6 +178,7 @@ impl Catalog {
                 || !valid_text(&product.publisher, 128)
                 || product.match_rules.is_empty()
                 || product.match_rules.len() > 16
+                || product.native_match_rules.len() > 16
             {
                 return fail("invalid or duplicate product");
             }
@@ -172,6 +189,16 @@ impl Catalog {
                     || !valid_evidence(&rule.evidence, true)
                 {
                     return fail("invalid, duplicate, or ambiguous match rule");
+                }
+            }
+            for rule in &product.native_match_rules {
+                // Flatpak origin currently records only a local remote alias, not trust.
+                if rule.source != InventorySource::MacosBundle
+                    || !valid_text(&rule.native_id, 256)
+                    || !native_ids.insert(&rule.native_id)
+                    || !valid_evidence(&rule.evidence, true)
+                {
+                    return fail("invalid, duplicate, or ambiguous native match rule");
                 }
             }
             for (support, expected) in
@@ -202,8 +229,30 @@ impl Catalog {
                 .publisher
                 .as_deref()
                 .is_some_and(|publisher| !valid_text(publisher, 512))
+            || app
+                .native_id
+                .as_deref()
+                .is_some_and(|id| !valid_text(id, 256))
+            || app
+                .origin
+                .as_deref()
+                .is_some_and(|origin| !valid_text(origin, 256))
         {
             return MatchOutcome::Unknown(UnknownReason::InvalidMetadata);
+        }
+        if app.source == InventorySource::MacosBundle {
+            let Some(native_id) = app.native_id.as_deref() else {
+                return MatchOutcome::Unknown(UnknownReason::MissingNativeId);
+            };
+            return match self.products.iter().find(|product| {
+                product
+                    .native_match_rules
+                    .iter()
+                    .any(|rule| rule.source == app.source && rule.native_id == native_id)
+            }) {
+                Some(product) => MatchOutcome::Matched(Box::new(product.clone())),
+                None => MatchOutcome::Unknown(UnknownReason::UnrecognizedMetadata),
+            };
         }
         if app.source != InventorySource::WindowsRegistry {
             return MatchOutcome::Unknown(UnknownReason::UnsupportedInventorySource);
@@ -375,11 +424,7 @@ mod tests {
                 MatchOutcome::Unknown(UnknownReason::UnrecognizedMetadata)
             );
         }
-        for source in [
-            InventorySource::Manual,
-            InventorySource::MacosBundle,
-            InventorySource::Flatpak,
-        ] {
+        for source in [InventorySource::Manual, InventorySource::Flatpak] {
             let mut observation = app("VLC media player", Some("VideoLAN"));
             observation.source = source;
             assert_eq!(
@@ -410,6 +455,78 @@ mod tests {
         let mut document = original;
         document["schema_version"] = 2.into();
         assert!(Catalog::from_json(&document.to_string()).is_err());
+    }
+
+    #[test]
+    fn native_identifiers_are_exact_and_bound_to_reviewed_source() {
+        let catalog = Catalog::bundled().unwrap();
+        let mut native = app("VLC", None);
+        native.source = InventorySource::MacosBundle;
+        assert_eq!(
+            catalog.match_app(&native),
+            MatchOutcome::Unknown(UnknownReason::MissingNativeId)
+        );
+        native.native_id = Some("org.videolan.vlc".into());
+        let MatchOutcome::Matched(product) = catalog.match_app(&native) else {
+            panic!("reviewed bundle ID must match")
+        };
+        assert_eq!(product.id, "vlc-media-player");
+        for id in [
+            "org.videolan.VLC",
+            "org.videolan.vlc.beta",
+            "com.microsoft.VSCode",
+            "com.microsoft.VSCodeInsiders",
+            "com.visualstudio.code.oss",
+        ] {
+            native.native_id = Some(id.into());
+            assert_eq!(
+                catalog.match_app(&native),
+                MatchOutcome::Unknown(UnknownReason::UnrecognizedMetadata)
+            );
+        }
+        native.native_id = Some("org.videolan.vlc".into());
+        for source in [
+            InventorySource::WindowsRegistry,
+            InventorySource::Manual,
+            InventorySource::Flatpak,
+        ] {
+            native.source = source;
+            assert!(matches!(
+                catalog.match_app(&native),
+                MatchOutcome::Unknown(_)
+            ));
+        }
+        native.source = InventorySource::MacosBundle;
+        native.native_id = Some("org.videolan.vlc\n".into());
+        assert_eq!(
+            catalog.match_app(&native),
+            MatchOutcome::Unknown(UnknownReason::InvalidMetadata)
+        );
+    }
+
+    #[test]
+    fn native_rule_validation_rejects_ambiguity_and_unreviewed_sources() {
+        let original: serde_json::Value = serde_json::from_str(BUNDLED).unwrap();
+        for source in ["windows_registry", "manual", "flatpak"] {
+            let mut document = original.clone();
+            document["products"][1]["native_match_rules"][0]["source"] = source.into();
+            assert!(Catalog::from_json(&document.to_string()).is_err());
+        }
+        let mut document = original.clone();
+        document["products"][0]["native_match_rules"] =
+            document["products"][1]["native_match_rules"].clone();
+        assert!(Catalog::from_json(&document.to_string()).is_err());
+        let mut document = original.clone();
+        document["products"][1]["native_match_rules"][0]["evidence"] = serde_json::json!([]);
+        assert!(Catalog::from_json(&document.to_string()).is_err());
+        let mut legacy = original;
+        for product in legacy["products"].as_array_mut().unwrap() {
+            product
+                .as_object_mut()
+                .unwrap()
+                .remove("native_match_rules");
+        }
+        assert!(Catalog::from_json(&legacy.to_string()).is_ok());
     }
 
     #[test]

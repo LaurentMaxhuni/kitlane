@@ -142,7 +142,20 @@
         }
       ],
       "id": "vlc-media-player",
-      "publisher": "VideoLAN"
+      "publisher": "VideoLAN",
+      "native_match_rules": [
+        {
+          "source": "macos_bundle",
+          "native_id": "org.videolan.vlc",
+          "evidence": [
+            {
+              "summary": "VideoLAN's macOS bundle plist declares this exact CFBundleIdentifier.",
+              "reviewed_on": "2026-10-11",
+              "url": "https://github.com/videolan/vlc/blob/3.0.x/share/Info.plist.in"
+            }
+          ]
+        }
+      ]
     },
     {
       "match_rules": [
