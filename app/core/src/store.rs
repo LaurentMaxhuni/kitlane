@@ -2,7 +2,11 @@
 use crate::model::{AppSettings, DeviceInfo, InventorySnapshot};
 use redb::{Database, ReadableDatabase, ReadableTable, TableDefinition};
 use serde::{Serialize, de::DeserializeOwned};
-use std::{fmt, fs::OpenOptions, path::Path};
+use std::{
+    fmt,
+    fs::OpenOptions,
+    path::{Path, PathBuf},
+};
 
 const META: TableDefinition<&str, u64> = TableDefinition::new("kitlane_meta");
 const RECORDS: TableDefinition<&str, &[u8]> = TableDefinition::new("kitlane_records");
@@ -82,6 +86,72 @@ fn same_device(left: &DeviceInfo, right: &DeviceInfo) -> bool {
     uuid::Uuid::parse_str(&left.id).ok() == uuid::Uuid::parse_str(&right.id).ok()
 }
 
+// Own only the uniquely reserved staging file, never the final database path.
+struct InitializingFile(PathBuf);
+
+impl InitializingFile {
+    fn reserve(path: &Path) -> Result<Self, StoreError> {
+        let parent = path
+            .parent()
+            .filter(|p| !p.as_os_str().is_empty())
+            .unwrap_or(Path::new("."));
+        let temporary = parent.join(format!(".kitlane-init-{}.redb", uuid::Uuid::new_v4()));
+        let mut options = OpenOptions::new();
+        options.write(true).create_new(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            options.mode(0o600);
+        }
+        options.open(&temporary).map_err(StoreError::Io)?;
+        Ok(Self(temporary))
+    }
+}
+
+impl Drop for InitializingFile {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.0);
+    }
+}
+
+fn initialize_database(path: &Path) -> Result<(), StoreError> {
+    let temporary = InitializingFile::reserve(path)?;
+    {
+        let db = Database::create(&temporary.0).map_err(database_error)?;
+        let txn = db.begin_write().map_err(database_error)?;
+        txn.open_table(META)
+            .map_err(database_error)?
+            .insert("schema_version", SCHEMA_VERSION)
+            .map_err(database_error)?;
+        txn.open_table(RECORDS).map_err(database_error)?;
+        txn.commit().map_err(database_error)?;
+    }
+    OpenOptions::new()
+        .write(true)
+        .open(&temporary.0)
+        .map_err(StoreError::Io)?
+        .sync_all()
+        .map_err(StoreError::Io)?;
+    // hard_link publishes a fully initialized file exclusively; it cannot replace a winner.
+    match std::fs::hard_link(&temporary.0, path) {
+        Ok(()) => {
+            #[cfg(unix)]
+            {
+                let parent = path
+                    .parent()
+                    .filter(|p| !p.as_os_str().is_empty())
+                    .unwrap_or(Path::new("."));
+                std::fs::File::open(parent)
+                    .map_err(StoreError::Io)?
+                    .sync_all()
+                    .map_err(StoreError::Io)?;
+            }
+            Ok(())
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => Ok(()),
+        Err(e) => Err(StoreError::Io(e)),
+    }
+}
 pub struct Store {
     db: Database,
 }
@@ -90,29 +160,11 @@ impl Store {
     /// Creates a database only when the path is absent. Existing files are never reset.
     pub fn open(path: impl AsRef<Path>) -> Result<Self, StoreError> {
         let path = path.as_ref();
-        let created = match OpenOptions::new().write(true).create_new(true).open(path) {
-            Ok(file) => {
-                drop(file);
-                true
-            }
-            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => false,
-            Err(e) => return Err(StoreError::Io(e)),
-        };
-        let db = if created {
-            Database::create(path)
-        } else {
-            Database::open(path)
+        if !path.try_exists().map_err(StoreError::Io)? {
+            initialize_database(path)?;
         }
-        .map_err(database_error)?;
-        if created {
-            let txn = db.begin_write().map_err(database_error)?;
-            txn.open_table(META)
-                .map_err(database_error)?
-                .insert("schema_version", SCHEMA_VERSION)
-                .map_err(database_error)?;
-            txn.open_table(RECORDS).map_err(database_error)?;
-            txn.commit().map_err(database_error)?;
-        } else {
+        let db = Database::open(path).map_err(database_error)?;
+        {
             let txn = db.begin_read().map_err(database_error)?;
             let meta = txn.open_table(META).map_err(database_error)?;
             let version = meta
@@ -285,6 +337,88 @@ mod tests {
         txn.commit().unwrap();
     }
 
+    #[test]
+    fn abandoned_initialization_cleans_only_owned_temporary_file() {
+        let path = TestPath::new();
+        let staging_path;
+        {
+            let staging = InitializingFile::reserve(&path.0).unwrap();
+            staging_path = staging.0.clone();
+            assert!(staging_path.exists());
+            assert!(!path.0.exists());
+            std::fs::write(&staging.0, b"failed initialization").unwrap();
+            assert!(Database::create(&staging.0).is_err());
+        }
+        assert!(!staging_path.exists());
+        assert!(!path.0.exists());
+        assert!(Store::open(&path.0).is_ok());
+    }
+
+    #[test]
+    fn publication_never_replaces_an_existing_file() {
+        for bytes in [b"existing database bytes".as_slice(), b""] {
+            let path = TestPath::new();
+            std::fs::write(&path.0, bytes).unwrap();
+            initialize_database(&path.0).unwrap();
+            assert_eq!(std::fs::read(&path.0).unwrap(), bytes);
+            assert!(Store::open(&path.0).is_err());
+            assert_eq!(std::fs::read(&path.0).unwrap(), bytes);
+        }
+    }
+
+    #[test]
+    fn initial_io_failure_can_be_retried_without_a_stranded_final_file() {
+        let directory =
+            std::env::temp_dir().join(format!("kitlane-init-test-{}", uuid::Uuid::new_v4()));
+        let path = directory.join("inventory.redb");
+        assert!(Store::open(&path).is_err());
+        assert!(!path.exists());
+        std::fs::create_dir(&directory).unwrap();
+        let store = Store::open(&path).unwrap();
+        assert_eq!(store.load_device().unwrap(), None);
+        drop(store);
+        std::fs::remove_file(path).unwrap();
+        std::fs::remove_dir(directory).unwrap();
+    }
+
+    #[test]
+    fn failed_publication_removes_staging_file_and_leaves_final_absent() {
+        let directory =
+            std::env::temp_dir().join(format!("kitlane-publication-test-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir(&directory).unwrap();
+        let path = directory.join("x".repeat(300));
+        assert!(initialize_database(&path).is_err());
+        assert!(!path.exists());
+        assert_eq!(std::fs::read_dir(&directory).unwrap().count(), 0);
+        std::fs::remove_dir(directory).unwrap();
+    }
+    #[test]
+    fn concurrent_initializers_publish_one_complete_database() {
+        let path = TestPath::new();
+        let threads: Vec<_> = (0..4)
+            .map(|_| {
+                let path = path.0.clone();
+                std::thread::spawn(move || initialize_database(&path))
+            })
+            .collect();
+        for thread in threads {
+            thread.join().unwrap().unwrap();
+        }
+        let store = Store::open(&path.0).unwrap();
+        assert_eq!(store.load_settings().unwrap(), AppSettings::default());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn new_database_is_private() {
+        use std::os::unix::fs::PermissionsExt;
+        let path = TestPath::new();
+        let _store = Store::open(&path.0).unwrap();
+        assert_eq!(
+            std::fs::metadata(&path.0).unwrap().permissions().mode() & 0o777,
+            0o600
+        );
+    }
     #[test]
     fn reopen_preserves_identity_snapshot_and_settings() {
         let path = TestPath::new();
