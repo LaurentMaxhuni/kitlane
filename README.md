@@ -1,6 +1,6 @@
 # Kitlane
 
-The app will be pure Rust, with Cargo managing its dependencies. The marketing website will be a separate project.
+The native Rust app lives in [`app/`](app/README.md), with Cargo managing its dependencies. Run `cargo run --manifest-path app/Cargo.toml` to launch it. The marketing website will be a separate project.
 
 All shared design files and Node tooling live in [`design-system/`](design-system/README.md): assets, fonts, tokens, component CSS, web helpers, documentation, and the interactive reference. The Rust app reuses assets, token values, and design guidance. CSS and JavaScript support the website and reference, not the app runtime.
 

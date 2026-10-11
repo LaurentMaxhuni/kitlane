@@ -1,0 +1,21 @@
+[package]
+name = "kitlane"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.95"
+publish = false
+description = "Kitlane native desktop application"
+
+[dependencies]
+eframe = { version = "0.36.2", default-features = false, features = ["glow", "accesskit", "wayland", "x11"] }
+
+[build-dependencies]
+serde_json = "1"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = "debuginfo"
+
+[lints.rust]
+unsafe_code = "forbid"
