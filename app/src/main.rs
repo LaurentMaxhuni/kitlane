@@ -8,6 +8,12 @@ fn main() -> eframe::Result {
     let options = eframe::NativeOptions {
         viewport: eframe::egui::ViewportBuilder::default()
             .with_inner_size([1000.0, 680.0])
+            .with_icon(
+                eframe::icon_data::from_png_bytes(include_bytes!(
+                    "../../design-system/assets/icons/app-icon-128.png"
+                ))
+                .expect("bundled Kitlane icon"),
+            )
             .with_min_inner_size([480.0, 360.0]),
         renderer: eframe::Renderer::Glow,
         ..Default::default()
