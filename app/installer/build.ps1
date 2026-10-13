@@ -1,6 +1,8 @@
 [CmdletBinding()]
-param([string]$Compiler, [switch]$SkipBuild)
+param([string]$Compiler, [string]$AccountApi = $env:KITLANE_ACCOUNT_API)
 $ErrorActionPreference = 'Stop'
+try { $accountUri = [Uri]$AccountApi } catch { throw 'AccountApi must be the verified HTTPS account API origin.' }
+if (!$accountUri -or !$accountUri.IsAbsoluteUri -or $accountUri.Scheme -ne 'https' -or $accountUri.UserInfo -or $accountUri.AbsolutePath -ne '/' -or $accountUri.Query -or $accountUri.Fragment) { throw 'AccountApi must be the verified HTTPS account API origin.' }
 $appRoot = Split-Path $PSScriptRoot -Parent
 $repoRoot = Split-Path $appRoot -Parent
 if (!$Compiler) {
@@ -10,12 +12,12 @@ if (!$Compiler) {
 }
 if (!(Test-Path -LiteralPath $Compiler -PathType Leaf)) { throw 'Install Inno Setup 6.7+ or pass -Compiler with the path to ISCC.exe.' }
 $Compiler = (Resolve-Path -LiteralPath $Compiler).Path
+$priorAccountApi = $env:KITLANE_ACCOUNT_API
+$env:KITLANE_ACCOUNT_API = $accountUri.GetLeftPart([UriPartial]::Authority)
 Push-Location $appRoot
 try {
-    if (!$SkipBuild) {
-        & cargo build --release --locked --bin kitlane
-        if ($LASTEXITCODE -ne 0) { throw "Cargo build failed ($LASTEXITCODE)." }
-    }
+    & cargo build --release --locked --bin kitlane
+    if ($LASTEXITCODE -ne 0) { throw "Cargo build failed ($LASTEXITCODE)." }
     $binary = Join-Path $appRoot 'target\release\kitlane.exe'
     if (!(Test-Path -LiteralPath $binary -PathType Leaf)) { throw "Missing release binary: $binary" }
     $metadata = & cargo metadata --no-deps --format-version 1 --locked | ConvertFrom-Json
@@ -51,4 +53,4 @@ try {
     } finally { $icon.Dispose(); $font.Dispose(); $caption.Dispose() }
     & $Compiler "/DAppVersion=$version" "/DBinaryPath=$binary" "/DArtworkPath=$artwork" (Join-Path $PSScriptRoot 'kitlane.iss')
     if ($LASTEXITCODE -ne 0) { throw "Installer compilation failed ($LASTEXITCODE)." }
-} finally { Pop-Location }
+} finally { Pop-Location; $env:KITLANE_ACCOUNT_API = $priorAccountApi }

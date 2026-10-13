@@ -54,6 +54,8 @@ Source: "..\..\design-system\assets\icons\app-icon.ico"; DestDir: "{app}"; DestN
 Source: "..\..\design-system\assets\fonts\Inter-OFL.txt"; DestDir: "{app}\licenses"; Flags: ignoreversion
 Source: "..\..\design-system\assets\fonts\Sora-OFL.txt"; DestDir: "{app}\licenses"; Flags: ignoreversion
 Source: "..\assets\programs\NOTICE.md"; DestDir: "{app}\licenses"; DestName: "Program-Logos.md"; Flags: ignoreversion
+Source: "..\..\design-system\assets\ui-icons\LICENSE"; DestDir: "{app}\licenses"; DestName: "Lucide-ISC.txt"; Flags: ignoreversion
+Source: "licenses\Pelite-MIT.txt"; DestDir: "{app}\licenses"; Flags: ignoreversion
 
 [Icons]
 Name: "{autoprograms}\Kitlane"; Filename: "{app}\kitlane.exe"; IconFilename: "{app}\kitlane.ico"
@@ -64,6 +66,6 @@ Filename: "{app}\kitlane.exe"; Description: "Launch Kitlane and set up your work
 
 [Messages]
 WelcomeLabel1=Your apps. A clearer workspace.
-WelcomeLabel2=Welcome to Kitlane.%n%nChoose where to install and which shortcuts to create. When you open Kitlane, a short setup helps you choose appearance, name this device, and decide when to scan your apps.%n%nYour library stays on this computer until you explicitly choose to share it.
+WelcomeLabel2=Welcome to Kitlane.%n%nChoose where to install and which shortcuts to create. Sign in with Google, then choose appearance, name this device, and decide when to scan your apps.%n%nYour library stays on this computer until you explicitly choose to share it.
 FinishedHeadingLabel=Your workspace starts here.
 FinishedLabel=Kitlane is installed.%n%nLaunch Kitlane to personalize your workspace. You can pair devices later.%n%nUninstalling Kitlane keeps your local library and settings.
