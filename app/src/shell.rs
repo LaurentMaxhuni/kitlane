@@ -1,3 +1,5 @@
+#[path = "account.rs"]
+mod account;
 #[path = "chrome.rs"]
 mod chrome;
 #[path = "devices.rs"]
@@ -6,6 +8,8 @@ mod devices;
 mod library;
 #[path = "logos.rs"]
 mod logos;
+#[path = "native_icons.rs"]
+pub(crate) mod native_icons;
 #[path = "pairing.rs"]
 mod pairing;
 #[path = "view.rs"]
@@ -45,31 +49,19 @@ enum PairingStep {
     Done,
 }
 
+#[derive(Default)]
 struct SyncUi {
-    endpoint: String,
-    pairing_token: String,
+    code_input: String,
     consent: bool,
-    enrolled: bool,
     busy: bool,
     message: Option<String>,
-}
-
-impl Default for SyncUi {
-    fn default() -> Self {
-        Self {
-            endpoint: "http://127.0.0.1:8787".into(),
-            pairing_token: String::new(),
-            consent: false,
-            enrolled: false,
-            busy: false,
-            message: None,
-        }
-    }
+    generated: Option<kitlane_account_client::PairCode>,
+    creating_code: bool,
 }
 
 impl Drop for SyncUi {
     fn drop(&mut self) {
-        self.pairing_token.zeroize();
+        self.code_input.zeroize();
     }
 }
 
@@ -97,9 +89,14 @@ pub struct KitlaneApp {
     plans: Vec<PlanEntry>,
     library_filter: LibraryFilter,
     selected_app: Option<String>,
+    local_icons: native_icons::Icons,
     pairing: Option<PairingStep>,
     pairing_transition: Option<PairingStep>,
     transition_key: Option<(Page, bool, u8)>,
+    account: Option<kitlane_account_client::Account>,
+    auth_busy: bool,
+    signing_in: bool,
+    paired_devices: Vec<DeviceInfo>,
 }
 
 impl KitlaneApp {
@@ -121,6 +118,11 @@ impl KitlaneApp {
             },
             dark,
             device: Some(device.clone()),
+            account: Some(kitlane_account_client::Account {
+                account_id: kitlane_core::new_device_id(),
+                email: "alex@example.com".into(),
+                name: "Alex".into(),
+            }),
             ..Self::default()
         };
         let mut apps: Vec<_> = [
@@ -183,7 +185,7 @@ impl KitlaneApp {
                 _ => PairingStep::Service,
             });
             app.sync.consent = true;
-            app.sync.enrolled = page == 10;
+            app.sync.code_input = "ABCD2345".into();
         }
         if page == 1 && state == "normal" {
             let mut peer = app.snapshot.clone().unwrap();
@@ -195,9 +197,13 @@ impl KitlaneApp {
                 .unwrap()
                 .as_secs()
                 .saturating_sub(900);
+            app.paired_devices.push(peer.device.clone());
             app.peers.push(peer);
-            app.sync.enrolled = true;
             app.rebuild_plans();
+        }
+        if page == 11 {
+            app.account = None;
+            app.onboarding = false;
         }
         if state == "reduced" {
             app.settings.reduced_motion = true;
@@ -215,11 +221,15 @@ impl KitlaneApp {
         let worker = worker::start(ctx);
         Self {
             worker: Some(worker),
+            auth_busy: true,
             ..Self::default()
         }
     }
 
     fn scan(&mut self) {
+        if self.account.is_none() {
+            return;
+        }
         let Some(worker) = &self.worker else {
             return;
         };
@@ -253,15 +263,11 @@ impl KitlaneApp {
                     self.dark = settings.dark_theme;
                     self.setup_name = self.device.as_ref().unwrap().name.clone();
                     self.onboarding = !settings.onboarding_completed;
-                    let scan = settings.onboarding_completed && settings.scan_on_startup;
                     self.settings = settings;
                     crate::theme::apply(ctx, self.dark);
                     if let Some(snapshot) = cached {
                         self.cached = true;
                         self.set_snapshot(snapshot);
-                    }
-                    if scan {
-                        self.scan();
                     }
                 }
                 Event::SetupSaved { device, settings } => {
@@ -297,32 +303,61 @@ impl KitlaneApp {
                     self.cached = false;
                     self.set_snapshot(snapshot);
                 }
+                Event::IconsLoaded(icons) => {
+                    for (id, old) in &self.local_icons {
+                        if icons.get(id).is_none_or(|new| new.uri != old.uri) {
+                            ctx.forget_image(&old.uri);
+                        }
+                    }
+                    self.local_icons = icons;
+                }
                 Event::ScanFailed(error) => {
                     self.scanning = false;
                     self.error = Some(error);
                 }
                 Event::StorageFailed(error) => {
+                    self.auth_busy = false;
                     self.scanning = false;
                     self.error = Some(error);
                 }
-                Event::EnrollmentState(enrolled) => {
+                Event::AccountReady(account) => {
+                    self.auth_busy = false;
+                    self.signing_in = false;
+                    self.error = None;
+                    self.account = Some(account);
+                    self.send_sync(Command::RefreshDevices);
+                    if self.settings.onboarding_completed && self.settings.scan_on_startup {
+                        self.scan();
+                    }
+                }
+                Event::SignedOut(message) => {
+                    self.clear_account();
+                    self.auth_busy = false;
+                    self.signing_in = false;
+                    self.error = message;
+                }
+                Event::CodeGenerated(code) => {
                     self.sync.busy = false;
-                    self.sync.enrolled = enrolled;
-                    if !enrolled {
-                        self.peers.clear();
-                        self.plans.clear();
-                    }
-                    if enrolled && self.pairing.is_some() {
+                    self.sync.generated = Some(code);
+                    self.sync.message = None;
+                }
+                Event::Devices(devices) => {
+                    let connected = devices
+                        .iter()
+                        .any(|d| !self.paired_devices.iter().any(|old| old.id == d.id));
+                    self.sync.busy = false;
+                    self.paired_devices = devices;
+                    self.peers
+                        .retain(|peer| self.paired_devices.iter().any(|d| d.id == peer.device.id));
+                    self.rebuild_plans();
+                    if self.pairing == Some(PairingStep::Review)
+                        || (connected && self.sync.creating_code && self.pairing.is_some())
+                    {
                         self.pairing = Some(PairingStep::Done);
+                        self.sync.message = Some(
+                            "Device connected. Sync when you are ready to share inventory.".into(),
+                        );
                     }
-                    self.sync.message = Some(
-                        if enrolled {
-                            "Credential saved. Sync runs only when you click Sync now."
-                        } else {
-                            "No saved credential. Forgetting it does not revoke server access."
-                        }
-                        .into(),
-                    );
                 }
                 Event::Synced(peers) => {
                     self.sync.busy = false;
@@ -388,6 +423,12 @@ impl KitlaneApp {
     }
 
     fn send_sync(&mut self, command: Command) {
+        if self.account.is_none()
+            || (matches!(&command, Command::Sync { .. }) && !self.sync.consent)
+        {
+            self.sync.message = Some("Sign in and choose inventory sharing before syncing.".into());
+            return;
+        }
         if let Some(worker) = &self.worker {
             match worker.try_send(command) {
                 Ok(()) => {
@@ -430,6 +471,98 @@ impl eframe::App for KitlaneApp {
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn account() -> kitlane_account_client::Account {
+        kitlane_account_client::Account {
+            account_id: kitlane_core::new_device_id(),
+            email: "test@example.com".into(),
+            name: "Test".into(),
+        }
+    }
+
+    #[test]
+    fn signed_out_startup_cannot_scan_or_unlock_workspace() {
+        let ctx = egui::Context::default();
+        let (worker, commands, events) = worker::test_worker();
+        let mut app = KitlaneApp {
+            worker: Some(worker),
+            ..Default::default()
+        };
+        events
+            .send(Event::Ready {
+                device: DeviceInfo {
+                    id: kitlane_core::new_device_id(),
+                    name: "Test".into(),
+                    platform: Platform::Windows,
+                    architecture: "x86_64".into(),
+                },
+                settings: AppSettings {
+                    onboarding_completed: true,
+                    ..Default::default()
+                },
+                cached: None,
+            })
+            .unwrap();
+        app.receive_events(&ctx);
+        app.scan();
+        assert!(
+            commands.try_recv().is_err(),
+            "Scanning requires verified Google login"
+        );
+    }
+
+    #[test]
+    fn signout_preserves_local_inventory_and_preferences_but_clears_cloud_consent() {
+        let mut app = KitlaneApp::preview(1, true, "normal");
+        app.sync.consent = true;
+        app.sync.code_input = "ABCD2345".into();
+        let local = app.snapshot.clone();
+        let settings = app.settings.clone();
+        app.clear_account();
+        assert!(app.account.is_none());
+        assert!(app.paired_devices.is_empty());
+        assert!(app.peers.is_empty());
+        assert!(!app.sync.consent);
+        assert!(app.sync.code_input.is_empty());
+        assert_eq!(app.snapshot, local);
+        assert_eq!(app.settings, settings);
+    }
+
+    #[test]
+    fn login_and_pairing_do_not_upload_and_sync_requires_fresh_consent() {
+        let ctx = egui::Context::default();
+        let (worker, commands, events) = worker::test_worker();
+        let mut app = KitlaneApp::preview(0, false, "normal");
+        app.worker = Some(worker);
+        app.account = None;
+        events.send(Event::AccountReady(account())).unwrap();
+        app.receive_events(&ctx);
+        assert!(matches!(
+            commands.try_recv().unwrap(),
+            Command::RefreshDevices
+        ));
+        assert!(commands.try_recv().is_err());
+        events
+            .send(Event::Devices(vec![DeviceInfo {
+                id: kitlane_core::new_device_id(),
+                name: "Peer".into(),
+                platform: Platform::Windows,
+                architecture: "x86_64".into(),
+            }]))
+            .unwrap();
+        app.receive_events(&ctx);
+        assert_eq!(app.paired_devices.len(), 1);
+        assert!(app.peers.is_empty());
+        assert!(commands.try_recv().is_err());
+        app.send_sync(Command::Sync {
+            snapshot: Box::new(app.snapshot.clone().unwrap()),
+        });
+        assert!(commands.try_recv().is_err());
+        app.sync.consent = true;
+        app.send_sync(Command::Sync {
+            snapshot: Box::new(app.snapshot.clone().unwrap()),
+        });
+        assert!(matches!(commands.try_recv().unwrap(), Command::Sync { .. }));
+    }
 
     #[test]
     fn reduced_motion_loading_does_not_schedule_continuous_repaint() {
@@ -508,6 +641,12 @@ mod tests {
             assert!(app.onboarding);
             assert_eq!(app.settings.onboarding_step, 2);
             assert!(commands.try_recv().is_err());
+            events.send(Event::AccountReady(account())).unwrap();
+            app.receive_events(&ctx);
+            assert!(matches!(
+                commands.try_recv().unwrap(),
+                Command::RefreshDevices
+            ));
             app.setup_busy = true;
             events.send(Event::SetupFailed("Disk full".into())).unwrap();
             app.receive_events(&ctx);
@@ -566,6 +705,7 @@ mod tests {
                     let mut app = KitlaneApp {
                         page,
                         dark,
+                        account: Some(account()),
                         ..Default::default()
                     };
                     app.set_snapshot(InventorySnapshot {
@@ -595,6 +735,7 @@ mod tests {
                     peer.device.name = "Peer device".into();
                     peer.apps[0].name = "Notepad++ (64-bit x64)".into();
                     peer.apps[0].publisher = Some("Notepad++ Team".into());
+                    app.paired_devices = vec![peer.device.clone()];
                     app.peers = vec![peer];
                     app.rebuild_plans();
                     assert_eq!(app.plans.len(), 1);
@@ -682,7 +823,7 @@ mod tests {
         press(&mut app, Some(egui::Key::Enter));
         assert!(app.dark);
         assert!(app.worker.is_none());
-        assert!(app.sync.pairing_token.is_empty());
+        assert!(app.sync.code_input.is_empty());
     }
 
     #[test]

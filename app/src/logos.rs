@@ -44,8 +44,16 @@ pub(super) fn show(
     app: &InstalledApp,
     matched: Option<&MatchOutcome>,
     p: &Palette,
+    local: Option<&super::native_icons::LocalIcon>,
 ) {
-    if let Some((id, bytes, url)) = asset(app, matched) {
+    if let Some(local) = local {
+        ui.add(
+            egui::Image::from_bytes(local.uri.clone(), local.bytes.clone())
+                .fit_to_exact_size(egui::vec2(34.0, 34.0))
+                .maintain_aspect_ratio(true),
+        )
+        .on_hover_text("Icon from this installed program");
+    } else if let Some((id, bytes, url)) = asset(app, matched) {
         let response = ui
             .add(
                 egui::Image::from_bytes(format!("bytes://program/{id}"), bytes)

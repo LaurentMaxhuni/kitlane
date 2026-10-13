@@ -69,6 +69,9 @@ pub(super) fn brand(ui: &mut egui::Ui, dark: bool, compact: bool) {
 
 impl KitlaneApp {
     fn save_setup_step(&mut self, step: u8, completed: bool) {
+        if self.account.is_none() {
+            return;
+        }
         let Some(worker) = &self.worker else {
             return;
         };
@@ -133,7 +136,7 @@ impl KitlaneApp {
                             ui.add_space(16.0);
                             ui.horizontal_wrapped(|ui| {
                                 for (dark, label) in [(false, "Light"), (true, "Dark")] {
-                                    if ui.add_sized([140.0, 64.0], egui::Button::new(label).selected(self.dark == dark)).clicked() {
+                                    if theme::choice(ui, self.dark == dark, label).clicked() {
                                         self.dark = dark;
                                         theme::apply(ui.ctx(), dark);
                                     }
@@ -141,13 +144,13 @@ impl KitlaneApp {
                             });
                             ui.add_space(12.0);
                             caption(ui, "You can change appearance later in Settings.", p);
-                            if ui.checkbox(&mut self.settings.reduced_motion, "Reduced motion").changed() { theme::motion(ui.ctx(), self.settings.reduced_motion); }
+                            if theme::toggle(ui, &mut self.settings.reduced_motion, "Reduced motion").changed() { theme::motion(ui.ctx(), self.settings.reduced_motion); }
                         }
                         2 => {
                             let label = ui.label("What should we call this device?");
-                            ui.add_sized([ui.available_width(), 42.0], egui::TextEdit::singleline(&mut self.setup_name).hint_text("For example, Studio workstation").desired_width(f32::INFINITY).char_limit(128)).labelled_by(label.id);
+                            theme::input(ui, &mut self.setup_name, "For example, Studio workstation", false, 128).labelled_by(label.id);
                             ui.add_space(20.0);
-                            ui.checkbox(&mut self.settings.scan_on_startup, "Scan installed apps now and on future launches");
+                            theme::toggle(ui, &mut self.settings.scan_on_startup, "Scan installed apps now and on future launches");
                             caption(ui, "Turn this off to scan manually from Library. Scanning does not install, update, or remove apps.", p);
                         }
                         _ => {
@@ -155,7 +158,7 @@ impl KitlaneApp {
                             ui.label(format!("Appearance: {}", if self.dark { "Dark" } else { "Light" }));
                             ui.label(format!("Inventory: {}", if self.settings.scan_on_startup { "Scan on launch" } else { "Manual scans" }));
                             ui.add_space(20.0);
-                            ui.checkbox(&mut self.setup_pair, "Open Devices to pair another computer after setup");
+                            theme::toggle(ui, &mut self.setup_pair, "Open Devices to pair another computer after setup");
                             caption(ui, "Optional. Pairing needs a local service and an owner-issued grant. No inventory is shared during setup.", p);
                         }
                     });
@@ -227,6 +230,10 @@ impl KitlaneApp {
         self.receive_events(ui.ctx());
         theme::motion(ui.ctx(), self.settings.reduced_motion);
         self.window_chrome(ui);
+        if self.account.is_none() {
+            self.sign_in_view(ui);
+            return;
+        }
         let key = (self.page, self.onboarding, self.settings.onboarding_step);
         if self.transition_key != Some(key) {
             self.transition_key = Some(key);
@@ -274,25 +281,6 @@ impl KitlaneApp {
                     self.navigation(ui, false);
                     ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
                         caption(ui, "Kitlane  ·  0.1", p);
-                        ui.add_space(12.0);
-                        Frame::new()
-                            .fill(p.bg)
-                            .corner_radius(10)
-                            .inner_margin(12)
-                            .show(ui, |ui| {
-                                ui.horizontal(|ui| {
-                                    theme::icon(ui, Icon::Shield, 18.0, p.muted);
-                                    ui.label(
-                                        RichText::new(if self.sync.enrolled {
-                                            "Enrolled locally"
-                                        } else {
-                                            "Local workspace"
-                                        })
-                                        .size(12.0),
-                                    );
-                                });
-                                caption(ui, "You choose what gets shared.", p);
-                            });
                     });
                 });
         }
@@ -597,7 +585,13 @@ impl KitlaneApp {
                                         let index = self.rows[row.index()];
                                         let app = &snapshot.apps[index];
                                         row.col(|ui| {
-                                            logos::show(ui, app, self.matches.get(index), p);
+                                            logos::show(
+                                                ui,
+                                                app,
+                                                self.matches.get(index),
+                                                p,
+                                                self.local_icons.get(&app.id),
+                                            );
                                             ui.allocate_ui_with_layout(
                                                 Vec2::new(ui.available_width(), 42.0),
                                                 egui::Layout::top_down(egui::Align::LEFT),
@@ -781,6 +775,30 @@ impl KitlaneApp {
         let p = theme::palette(self.dark);
         caption(ui, "YOUR WORKSPACE", p);
         ui.heading("Make it yours");
+        if let Some(account) = self.account.clone() {
+            ui.add_space(20.0);
+            card(p).show(ui, |ui| {
+                ui.set_min_width(ui.available_width());
+                ui.label(RichText::new("Google account").size(18.0));
+                ui.label(&account.email);
+                caption(ui, "Pair computers signed in to this account.", p);
+                ui.add_space(12.0);
+                if ui
+                    .add_enabled(self.worker.is_some(), egui::Button::new("Sign out"))
+                    .clicked()
+                    && let Some(worker) = &self.worker
+                {
+                    match worker.try_send(Command::SignOut) {
+                        Ok(()) => {
+                            self.clear_account();
+                            self.auth_busy = true;
+                        }
+                        Err(_) => self.error = Some("Sign-out could not start. Try again.".into()),
+                    }
+                }
+            });
+            ui.add_space(16.0);
+        }
         ui.label(RichText::new("A few preferences for a calmer workspace.").color(p.muted));
         ui.add_space(24.0);
         card(p).show(ui, |ui| {
@@ -789,26 +807,9 @@ impl KitlaneApp {
             caption(ui, "Choose how Kitlane looks on this computer.", p);
             ui.add_space(16.0);
             ui.horizontal_wrapped(|ui| {
-                for (dark, label, icon) in [(false, "Light", Icon::Sun), (true, "Dark", Icon::Moon)]
-                {
+                for (dark, label) in [(false, "Light"), (true, "Dark")] {
                     let selected = self.dark == dark;
-                    let button = egui::Button::image_and_text(
-                        theme::icon_image(icon, 20.0, if selected { p.info_text } else { p.muted }),
-                        label,
-                    )
-                    .fill(if selected { p.selected } else { p.bg })
-                    .stroke(Stroke::new(
-                        if selected { 2.0 } else { 1.0 },
-                        if selected { p.info_text } else { p.border },
-                    ));
-                    if ui
-                        .add_enabled(
-                            self.worker.is_none() || self.device.is_some(),
-                            button.min_size(Vec2::new(160.0, 72.0)),
-                        )
-                        .clicked()
-                        && !selected
-                    {
+                    if theme::choice(ui, selected, label).clicked() && !selected {
                         self.save_preferences(
                             AppSettings {
                                 dark_theme: dark,
@@ -831,12 +832,10 @@ impl KitlaneApp {
             ui.set_min_width(ui.available_width());
             ui.label(RichText::new("Library preferences").size(18.0));
             let mut reduced = self.settings.reduced_motion;
-            if ui.checkbox(&mut reduced, "Reduced motion").changed() { self.save_preferences(AppSettings { reduced_motion: reduced, ..self.settings.clone() }, ui.ctx()); }
+            if theme::toggle(ui, &mut reduced, "Reduced motion").changed() { self.save_preferences(AppSettings { reduced_motion: reduced, ..self.settings.clone() }, ui.ctx()); }
             caption(ui, "Use instant transitions and static loading indicators. Your choice is saved for this computer.", p);
             let mut scan = self.settings.scan_on_startup;
-            if ui
-                .checkbox(&mut scan, "Scan installed apps on launch")
-                .changed()
+            if theme::toggle(ui, &mut scan, "Scan installed apps on launch").changed()
             {
                 let settings = AppSettings {
                     scan_on_startup: scan,

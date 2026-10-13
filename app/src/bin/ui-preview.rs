@@ -71,6 +71,7 @@ mod preview {
                 Some("pair-consent") => 8,
                 Some("pair-review") => 9,
                 Some("pair-done") => 10,
+                Some("sign-in") => 11,
                 _ => return Err("Unknown preview page. See --help for accepted pages.".into()),
             };
             let dark = match take("--theme")?.to_str() {
