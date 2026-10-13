@@ -9,6 +9,10 @@ use kitlane_core::{
 pub enum Command {
     Scan,
     SaveSettings(AppSettings),
+    SaveSetup {
+        name: String,
+        settings: AppSettings,
+    },
     CheckEnrollment {
         endpoint: String,
     },
@@ -34,6 +38,11 @@ pub enum Event {
     Scanned(InventorySnapshot),
     ScanFailed(String),
     StorageFailed(String),
+    SetupSaved {
+        device: DeviceInfo,
+        settings: AppSettings,
+    },
+    SetupFailed(String),
     EnrollmentState(bool),
     Synced(Vec<InventorySnapshot>),
     SyncFailed(String),
@@ -43,6 +52,21 @@ pub struct Worker {
     commands: Option<mpsc::SyncSender<Command>>,
     pub events: mpsc::Receiver<Event>,
     handle: Option<thread::JoinHandle<()>>,
+}
+
+#[cfg(test)]
+pub(crate) fn test_worker() -> (Worker, mpsc::Receiver<Command>, mpsc::Sender<Event>) {
+    let (commands, receiver) = mpsc::sync_channel(4);
+    let (sender, events) = mpsc::channel();
+    (
+        Worker {
+            commands: Some(commands),
+            events,
+            handle: None,
+        },
+        receiver,
+        sender,
+    )
 }
 
 impl Worker {
@@ -114,7 +138,7 @@ pub fn start(ctx: eframe::egui::Context) -> Worker {
             ctx.request_repaint();
             delivered
         };
-        let (store, device, settings, cached) = match initialize() {
+        let (store, mut device, settings, cached) = match initialize() {
             Ok(state) => state,
             Err(error) => {
                 emit(Event::StorageFailed(error));
@@ -154,6 +178,24 @@ pub fn start(ctx: eframe::egui::Context) -> Worker {
                         )))
                     {
                         return;
+                    }
+                }
+                Command::SaveSetup { name, settings } => {
+                    let mut updated = device.clone();
+                    updated.name = name.trim().to_owned();
+                    match store.save_setup(&updated, &settings) {
+                        Ok(()) => {
+                            device = updated;
+                            emit(Event::SetupSaved {
+                                device: device.clone(),
+                                settings,
+                            });
+                        }
+                        Err(error) => {
+                            emit(Event::SetupFailed(format!(
+                                "Setup could not be saved: {error}"
+                            )));
+                        }
                     }
                 }
                 Command::CheckEnrollment { endpoint } => {

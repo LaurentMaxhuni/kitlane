@@ -282,10 +282,14 @@ impl Store {
     pub fn load_settings(&self) -> Result<AppSettings, StoreError> {
         let txn = self.db.begin_read().map_err(database_error)?;
         let table = txn.open_table(RECORDS).map_err(database_error)?;
-        Ok(read_record(&table, "settings", SETTINGS_LIMIT)?.unwrap_or_default())
+        let settings: AppSettings =
+            read_record(&table, "settings", SETTINGS_LIMIT)?.unwrap_or_default();
+        settings.validate().map_err(StoreError::InvalidData)?;
+        Ok(settings)
     }
 
     pub fn save_settings(&self, settings: &AppSettings) -> Result<(), StoreError> {
+        settings.validate().map_err(StoreError::InvalidData)?;
         let bytes = encode(settings, SETTINGS_LIMIT)?;
         let txn = self.db.begin_write().map_err(database_error)?;
         {
@@ -297,11 +301,121 @@ impl Store {
         }
         txn.commit().map_err(database_error)
     }
+
+    /// Commit setup choices together, retaining identity and existing inventory.
+    pub fn save_setup(
+        &self,
+        device: &DeviceInfo,
+        settings: &AppSettings,
+    ) -> Result<(), StoreError> {
+        device.validate().map_err(StoreError::InvalidData)?;
+        settings.validate().map_err(StoreError::InvalidData)?;
+        let device_bytes = encode(device, DEVICE_LIMIT)?;
+        let settings_bytes = encode(settings, SETTINGS_LIMIT)?;
+        let txn = self.db.begin_write().map_err(database_error)?;
+        {
+            let mut table = txn.open_table(RECORDS).map_err(database_error)?;
+            let existing: DeviceInfo = read_record(&table, "device", DEVICE_LIMIT)?.ok_or(
+                StoreError::InvalidData("Setup has no saved device identity"),
+            )?;
+            existing.validate().map_err(StoreError::InvalidData)?;
+            if existing.id != device.id
+                || existing.platform != device.platform
+                || existing.architecture != device.architecture
+            {
+                return Err(StoreError::InvalidData(
+                    "Setup cannot replace device identity",
+                ));
+            }
+            read_record::<AppSettings>(&table, "settings", SETTINGS_LIMIT)?;
+            if let Some(mut snapshot) =
+                read_record::<InventorySnapshot>(&table, "snapshot", SNAPSHOT_LIMIT)?
+            {
+                snapshot.validate().map_err(StoreError::InvalidData)?;
+                if !same_device(device, &snapshot.device) {
+                    return Err(StoreError::InvalidData(
+                        "Inventory conflicts with saved device identity",
+                    ));
+                }
+                snapshot.device = device.clone();
+                let bytes = encode(&snapshot, SNAPSHOT_LIMIT)?;
+                table
+                    .insert("snapshot", bytes.as_slice())
+                    .map_err(database_error)?;
+            }
+            table
+                .insert("device", device_bytes.as_slice())
+                .map_err(database_error)?;
+            table
+                .insert("settings", settings_bytes.as_slice())
+                .map_err(database_error)?;
+        }
+        txn.commit().map_err(database_error)
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn setup_saves_atomically_and_rejects_identity_replacement() {
+        let path = TestPath::new();
+        let store = Store::open(&path.0).unwrap();
+        let original = snapshot(device());
+        store.save_device(&original.device).unwrap();
+        store.save_snapshot(&original).unwrap();
+        let mut renamed = original.device.clone();
+        renamed.name = "Studio PC".into();
+        let settings = AppSettings {
+            onboarding_completed: true,
+            scan_on_startup: false,
+            ..Default::default()
+        };
+        store.save_setup(&renamed, &settings).unwrap();
+        let mut invalid = renamed.clone();
+        invalid.name = "bad\nname".into();
+        assert!(store.save_setup(&invalid, &AppSettings::default()).is_err());
+        assert!(
+            store
+                .save_setup(
+                    &renamed,
+                    &AppSettings {
+                        onboarding_step: 4,
+                        ..Default::default()
+                    }
+                )
+                .is_err()
+        );
+        assert!(
+            store
+                .save_setup(&device(), &AppSettings::default())
+                .is_err()
+        );
+        drop(store);
+        let store = Store::open(&path.0).unwrap();
+        assert_eq!(store.load_device().unwrap(), Some(renamed.clone()));
+        assert_eq!(store.load_settings().unwrap(), settings);
+        assert_eq!(store.load_snapshot().unwrap().unwrap().device, renamed);
+    }
+
+    #[test]
+    fn unfinished_setup_resumes_with_saved_choices() {
+        let path = TestPath::new();
+        let store = Store::open(&path.0).unwrap();
+        let device = device();
+        store.save_device(&device).unwrap();
+        let settings = AppSettings {
+            dark_theme: true,
+            onboarding_step: 2,
+            scan_on_startup: false,
+            ..Default::default()
+        };
+        store.save_setup(&device, &settings).unwrap();
+        drop(store);
+        let store = Store::open(&path.0).unwrap();
+        assert_eq!(store.load_settings().unwrap(), settings);
+    }
     use crate::model::Platform;
 
     struct TestPath(std::path::PathBuf);
@@ -424,7 +538,10 @@ mod tests {
         let path = TestPath::new();
         let device = device();
         let snapshot = snapshot(device.clone());
-        let settings = AppSettings { dark_theme: true };
+        let settings = AppSettings {
+            dark_theme: true,
+            ..Default::default()
+        };
         {
             let store = Store::open(&path.0).unwrap();
             assert_eq!(store.load_device().unwrap(), None);
@@ -521,7 +638,10 @@ mod tests {
         store.save_device(&original.device).unwrap();
         store.save_snapshot(&original).unwrap();
         store
-            .save_settings(&AppSettings { dark_theme: true })
+            .save_settings(&AppSettings {
+                dark_theme: true,
+                ..Default::default()
+            })
             .unwrap();
         {
             let txn = store.db.begin_write().unwrap();
@@ -537,7 +657,10 @@ mod tests {
         assert_eq!(store.load_snapshot().unwrap(), Some(original));
         assert_eq!(
             store.load_settings().unwrap(),
-            AppSettings { dark_theme: true }
+            AppSettings {
+                dark_theme: true,
+                ..Default::default()
+            }
         );
     }
     #[test]

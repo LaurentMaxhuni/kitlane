@@ -31,3 +31,17 @@ jobs:
       - run: cargo +1.97.1 fmt --all --check
       - run: cargo +1.97.1 test --workspace --locked
       - run: cargo +1.97.1 clippy --workspace --all-targets --locked -- -D warnings
+      - name: Windows installer compiler
+        if: runner.os == 'Windows'
+        run: choco install innosetup --version=6.7.3 --yes --no-progress
+      - name: Build Windows installer
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./installer/build.ps1
+      - name: Save Windows installer
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Kitlane-Windows-Setup
+          path: dist/Kitlane-*-Setup-x64.exe
+          if-no-files-found: error

@@ -20,7 +20,7 @@ mod preview {
         time::{Duration, Instant},
     };
 
-    const USAGE: &str = "ui-preview --page library|devices|settings --theme light|dark --state normal|empty|loading|error|long --width 480..4096 --height 360..2160 --output ABSOLUTE.png";
+    const USAGE: &str = "ui-preview --page library|devices|settings|welcome|appearance|setup-device|setup-review --theme light|dark --state normal|empty|loading|error|long --width 480..4096 --height 360..2160 --output ABSOLUTE.png";
     const TIMEOUT: Duration = Duration::from_secs(15);
 
     #[derive(Debug, PartialEq)]
@@ -63,7 +63,11 @@ mod preview {
                 Some("library") => 0,
                 Some("devices") => 1,
                 Some("settings") => 2,
-                _ => return Err("Page must be library, devices, or settings".into()),
+                Some("welcome") => 3,
+                Some("appearance") => 4,
+                Some("setup-device") => 5,
+                Some("setup-review") => 6,
+                _ => return Err("Page must be library, devices, settings, welcome, appearance, setup-device, or setup-review".into()),
             };
             let dark = match take("--theme")?.to_str() {
                 Some("light") => false,

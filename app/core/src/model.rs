@@ -79,10 +79,40 @@ pub struct InventorySnapshot {
     pub warnings: Vec<String>,
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct AppSettings {
     pub dark_theme: bool,
+    #[serde(default)]
+    pub onboarding_completed: bool,
+    #[serde(default)]
+    pub onboarding_step: u8,
+    #[serde(default = "default_scan")]
+    pub scan_on_startup: bool,
+}
+
+fn default_scan() -> bool {
+    true
+}
+
+impl Default for AppSettings {
+    fn default() -> Self {
+        Self {
+            dark_theme: false,
+            onboarding_completed: false,
+            onboarding_step: 0,
+            scan_on_startup: true,
+        }
+    }
+}
+
+impl AppSettings {
+    pub fn validate(&self) -> Result<(), &'static str> {
+        if self.onboarding_step > 3 {
+            return Err("Invalid onboarding step");
+        }
+        Ok(())
+    }
 }
 
 fn valid_text(value: &str, max: usize) -> bool {
@@ -137,6 +167,15 @@ impl InventorySnapshot {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn legacy_settings_keep_appearance_and_require_setup() {
+        let settings: AppSettings = serde_json::from_str(r#"{"dark_theme":true}"#).unwrap();
+        assert!(settings.dark_theme);
+        assert!(!settings.onboarding_completed);
+        assert_eq!(settings.onboarding_step, 0);
+        assert!(settings.scan_on_startup);
+    }
 
     #[test]
     fn legacy_application_records_keep_optional_native_metadata() {

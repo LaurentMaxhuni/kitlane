@@ -51,6 +51,11 @@ impl Drop for SyncUi {
 pub struct KitlaneApp {
     page: Page,
     dark: bool,
+    settings: AppSettings,
+    onboarding: bool,
+    setup_name: String,
+    setup_busy: bool,
+    setup_pair: bool,
     worker: Option<Worker>,
     device: Option<DeviceInfo>,
     snapshot: Option<InventorySnapshot>,
@@ -133,17 +138,20 @@ impl KitlaneApp {
         if state == "error" {
             app.error = Some("Inventory scan failed. Your saved library is still available. Try refreshing again.".into());
         }
+        if page >= 3 {
+            app.onboarding = true;
+            app.settings.onboarding_step = (page - 3).min(3) as u8;
+            app.setup_name = "Studio workstation".into();
+        }
         app
     }
 
     pub fn new(ctx: egui::Context) -> Self {
         let worker = worker::start(ctx);
-        let mut app = Self {
+        Self {
             worker: Some(worker),
             ..Self::default()
-        };
-        app.scan();
-        app
+        }
     }
 
     fn scan(&mut self) {
@@ -178,11 +186,43 @@ impl KitlaneApp {
                 } => {
                     self.device = Some(device);
                     self.dark = settings.dark_theme;
+                    self.setup_name = self.device.as_ref().unwrap().name.clone();
+                    self.onboarding = !settings.onboarding_completed;
+                    let scan = settings.onboarding_completed && settings.scan_on_startup;
+                    self.settings = settings;
                     crate::theme::apply(ctx, self.dark);
                     if let Some(snapshot) = cached {
                         self.cached = true;
                         self.set_snapshot(snapshot);
                     }
+                    if scan {
+                        self.scan();
+                    }
+                }
+                Event::SetupSaved { device, settings } => {
+                    self.setup_busy = false;
+                    self.device = Some(device.clone());
+                    if let Some(snapshot) = &mut self.snapshot {
+                        snapshot.device = device;
+                    }
+                    self.onboarding = !settings.onboarding_completed;
+                    self.dark = settings.dark_theme;
+                    let completed = settings.onboarding_completed;
+                    self.settings = settings;
+                    if completed {
+                        self.page = if self.setup_pair {
+                            Page::Devices
+                        } else {
+                            Page::Library
+                        };
+                        if self.settings.scan_on_startup {
+                            self.scan();
+                        }
+                    }
+                }
+                Event::SetupFailed(error) => {
+                    self.setup_busy = false;
+                    self.error = Some(error);
                 }
                 Event::Scanned(snapshot) => {
                     self.scanning = false;
@@ -302,6 +342,83 @@ impl eframe::App for KitlaneApp {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn onboarding_blocks_scans_until_successful_completion() {
+        for scan_on_startup in [false, true] {
+            let ctx = egui::Context::default();
+            let (worker, commands, events) = worker::test_worker();
+            let mut app = KitlaneApp {
+                worker: Some(worker),
+                ..Default::default()
+            };
+            let device = DeviceInfo {
+                id: kitlane_core::new_device_id(),
+                name: "Test PC".into(),
+                platform: Platform::Windows,
+                architecture: "x86_64".into(),
+            };
+            let mut settings = AppSettings {
+                onboarding_step: 2,
+                scan_on_startup,
+                ..Default::default()
+            };
+            events
+                .send(Event::Ready {
+                    device: device.clone(),
+                    settings: settings.clone(),
+                    cached: None,
+                })
+                .unwrap();
+            app.receive_events(&ctx);
+            assert!(app.onboarding);
+            assert_eq!(app.settings.onboarding_step, 2);
+            assert!(commands.try_recv().is_err());
+            app.setup_busy = true;
+            events.send(Event::SetupFailed("Disk full".into())).unwrap();
+            app.receive_events(&ctx);
+            assert!(app.onboarding);
+            assert!(!app.setup_busy);
+            assert!(commands.try_recv().is_err());
+            settings.onboarding_completed = true;
+            events.send(Event::SetupSaved { device, settings }).unwrap();
+            app.receive_events(&ctx);
+            assert!(!app.onboarding);
+            assert_eq!(app.scanning, scan_on_startup);
+            if scan_on_startup {
+                assert!(matches!(commands.try_recv().unwrap(), Command::Scan));
+            } else {
+                assert!(commands.try_recv().is_err());
+            }
+        }
+    }
+
+    #[test]
+    fn onboarding_renders_all_steps_in_both_themes_and_small_windows() {
+        for dark in [false, true] {
+            for step in 0..4 {
+                for width in [480.0, 1440.0] {
+                    let ctx = egui::Context::default();
+                    crate::theme::install_fonts(&ctx);
+                    crate::theme::apply(&ctx, dark);
+                    egui_extras::install_image_loaders(&ctx);
+                    let mut app = KitlaneApp::preview(step + 3, dark, "normal");
+                    let input = egui::RawInput {
+                        screen_rect: Some(egui::Rect::from_min_size(
+                            egui::Pos2::ZERO,
+                            egui::vec2(width, 600.0),
+                        )),
+                        ..Default::default()
+                    };
+                    let mut output = ctx.run_ui(input, |ui| app.content(ui));
+                    assert!(!output.shapes.is_empty());
+                    output.textures_delta.clear();
+                    assert!(app.onboarding);
+                    assert!(!app.scanning);
+                }
+            }
+        }
+    }
 
     #[test]
     fn all_pages_render_in_both_themes_without_continuous_repaint() {

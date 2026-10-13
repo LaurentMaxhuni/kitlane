@@ -68,6 +68,115 @@ fn brand(ui: &mut egui::Ui, dark: bool, compact: bool) {
 }
 
 impl KitlaneApp {
+    fn save_setup_step(&mut self, step: u8, completed: bool) {
+        let Some(worker) = &self.worker else {
+            return;
+        };
+        let settings = AppSettings {
+            dark_theme: self.dark,
+            onboarding_step: step,
+            onboarding_completed: completed,
+            ..self.settings.clone()
+        };
+        match worker.try_send(Command::SaveSetup {
+            name: self.setup_name.clone(),
+            settings,
+        }) {
+            Ok(()) => {
+                self.setup_busy = true;
+                self.error = None;
+            }
+            Err(error) => {
+                self.error = Some(format!("Setup could not be saved: {error}. Try again."))
+            }
+        }
+    }
+
+    fn setup_view(&mut self, ui: &mut egui::Ui) {
+        let p = theme::palette(self.dark);
+        egui::CentralPanel::default().frame(Frame::new().fill(p.bg).inner_margin(24)).show(ui, |ui| {
+            egui::ScrollArea::vertical().show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.add_space(((ui.available_width() - 640.0) / 2.0).max(0.0));
+                    ui.vertical(|ui| {
+                let width = ui.available_width().min(640.0);
+                ui.set_width(width);
+                brand(ui, self.dark, false);
+                ui.add_space(24.0);
+                let step = self.settings.onboarding_step;
+                caption(ui, format!("SET UP YOUR WORKSPACE  ·  STEP {} OF 4", step + 1), p);
+                ui.add_space(8.0);
+                ui.add(egui::ProgressBar::new((step + 1) as f32 / 4.0).fill(p.action).desired_height(6.0).desired_width(ui.available_width()));
+                ui.add_space(24.0);
+                if self.device.is_none() {
+                    ui.heading("Getting your workspace ready");
+                    if let Some(error) = &self.error { ui.colored_label(p.danger_text, error); }
+                    else { ui.spinner(); }
+                    return;
+                }
+                let titles = ["A little setup. A clearer workspace.", "Make Kitlane feel like yours", "Tell us about this computer", "Ready when you are"];
+                ui.label(RichText::new(titles[usize::from(step)]).size(28.0).strong());
+                ui.add_space(12.0);
+                card(p).show(ui, |ui| {
+                    ui.set_min_width(ui.available_width());
+                    ui.add_enabled_ui(!self.setup_busy, |ui| match step {
+                        0 => {
+                            ui.label("Bring your installed apps into one library and see where they work across your devices.");
+                            ui.add_space(20.0);
+                            theme::icon(ui, Icon::Shield, 28.0, p.info_text);
+                            ui.label(RichText::new("Your library starts here, on this computer.").strong());
+                            ui.add_space(8.0);
+                            caption(ui, "Scanning reads installed-app metadata. Sharing requires optional pairing, explicit consent, and Sync now.", p);
+                        }
+                        1 => {
+                            ui.label("Which appearance works best for you?");
+                            ui.add_space(16.0);
+                            ui.horizontal_wrapped(|ui| {
+                                for (dark, label) in [(false, "Light"), (true, "Dark")] {
+                                    if ui.add_sized([140.0, 64.0], egui::Button::new(label).selected(self.dark == dark)).clicked() {
+                                        self.dark = dark;
+                                        theme::apply(ui.ctx(), dark);
+                                    }
+                                }
+                            });
+                            ui.add_space(12.0);
+                            caption(ui, "You can change appearance later in Settings.", p);
+                        }
+                        2 => {
+                            let label = ui.label("What should we call this device?");
+                            ui.add_sized([ui.available_width(), 42.0], egui::TextEdit::singleline(&mut self.setup_name).hint_text("For example, Studio workstation").desired_width(f32::INFINITY).char_limit(128)).labelled_by(label.id);
+                            ui.add_space(20.0);
+                            ui.checkbox(&mut self.settings.scan_on_startup, "Scan installed apps now and on future launches");
+                            caption(ui, "Turn this off to scan manually from Library. Scanning does not install, update, or remove apps.", p);
+                        }
+                        _ => {
+                            ui.label(format!("Device: {}", self.setup_name.trim()));
+                            ui.label(format!("Appearance: {}", if self.dark { "Dark" } else { "Light" }));
+                            ui.label(format!("Inventory: {}", if self.settings.scan_on_startup { "Scan on launch" } else { "Manual scans" }));
+                            ui.add_space(20.0);
+                            ui.checkbox(&mut self.setup_pair, "Open Devices to pair another computer after setup");
+                            caption(ui, "Optional. Pairing needs a local service and an owner-issued grant. No inventory is shared during setup.", p);
+                        }
+                    });
+                });
+                ui.add_space(16.0);
+                if let Some(error) = &self.error { ui.colored_label(p.danger_text, error); }
+                let valid = self.device.as_ref().is_some_and(|device| {
+                    let mut draft = device.clone(); draft.name = self.setup_name.trim().to_owned(); draft.validate().is_ok()
+                });
+                if step == 2 && !valid { ui.colored_label(p.danger_text, "Use a device name of 1–128 bytes without control characters."); }
+                ui.horizontal_wrapped(|ui| {
+                    if step > 0 && ui.add_enabled(!self.setup_busy, egui::Button::new("Back").min_size(Vec2::new(100.0, 42.0))).clicked() { self.save_setup_step(step - 1, false); }
+                    let enabled = !self.setup_busy && valid;
+                    if ui.add_enabled(enabled, primary(if step == 3 { "Open Kitlane" } else { "Continue" }, p, enabled)).clicked() { self.save_setup_step((step + 1).min(3), step == 3); }
+                    if self.setup_busy { ui.spinner(); ui.label("Saving your choices…"); }
+                });
+                    });
+                });
+            });
+        });
+    }
+
     fn navigation(&mut self, ui: &mut egui::Ui, compact: bool) {
         let p = theme::palette(self.dark);
         for (page, label, icon) in [
@@ -100,6 +209,10 @@ impl KitlaneApp {
 
     pub(super) fn content(&mut self, ui: &mut egui::Ui) {
         self.receive_events(ui.ctx());
+        if self.onboarding || (self.worker.is_some() && self.device.is_none()) {
+            self.setup_view(ui);
+            return;
+        }
         let p = theme::palette(self.dark);
         let compact = ui.available_width() < 860.0;
         if compact {
@@ -800,11 +913,15 @@ impl KitlaneApp {
                         self.dark = dark;
                         theme::apply(ui.ctx(), dark);
                         if let Some(worker) = &self.worker
-                            && let Err(error) = worker
-                                .try_send(Command::SaveSettings(AppSettings { dark_theme: dark }))
+                            && let Err(error) =
+                                worker.try_send(Command::SaveSettings(AppSettings {
+                                    dark_theme: dark,
+                                    ..self.settings.clone()
+                                }))
                         {
                             self.error = Some(format!("Appearance could not be saved: {error}"));
                         }
+                        self.settings.dark_theme = dark;
                     }
                 }
             });
@@ -814,6 +931,39 @@ impl KitlaneApp {
             ui.horizontal(|ui| { theme::icon(ui, Icon::Shield, 24.0, p.info_text); ui.label(RichText::new("You're in control").size(18.0)); });
             ui.add_space(8.0);
             ui.label("Inventory sharing happens only when you choose Sync now. Device credentials stay in your operating system's credential store.");
+        });
+        ui.add_space(16.0);
+        card(p).show(ui, |ui| {
+            ui.set_min_width(ui.available_width());
+            ui.label(RichText::new("Library preferences").size(18.0));
+            let mut scan = self.settings.scan_on_startup;
+            if ui
+                .checkbox(&mut scan, "Scan installed apps on launch")
+                .changed()
+            {
+                let settings = AppSettings {
+                    scan_on_startup: scan,
+                    ..self.settings.clone()
+                };
+                if let Some(worker) = &self.worker {
+                    match worker.try_send(Command::SaveSettings(settings.clone())) {
+                        Ok(()) => self.settings = settings,
+                        Err(error) => {
+                            self.error = Some(format!("Preferences could not be saved: {error}"))
+                        }
+                    }
+                }
+            }
+            if ui
+                .add_enabled(
+                    !self.setup_busy && self.device.is_some(),
+                    egui::Button::new("Run setup again"),
+                )
+                .clicked()
+            {
+                self.setup_name = self.device.as_ref().unwrap().name.clone();
+                self.save_setup_step(0, false);
+            }
         });
         ui.add_space(16.0);
         card(p).show(ui, |ui| {
