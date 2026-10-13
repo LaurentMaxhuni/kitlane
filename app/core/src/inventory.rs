@@ -60,6 +60,38 @@ pub fn scan(device: DeviceInfo) -> Result<InventorySnapshot, InventoryError> {
     }
 }
 
+/// Local-only evidence. Never included in a stored or shared snapshot.
+pub struct LocalIconSource {
+    pub app_id: String,
+    pub app_name: String,
+    pub display_icon: Option<String>,
+    pub install_location: Option<String>,
+    pub uninstall: Option<String>,
+}
+
+pub struct LocalInventory {
+    pub snapshot: InventorySnapshot,
+    pub icons: Vec<LocalIconSource>,
+}
+
+pub fn scan_with_icons(device: DeviceInfo) -> Result<LocalInventory, InventoryError> {
+    #[cfg(windows)]
+    {
+        device.validate().map_err(InventoryError::InvalidDevice)?;
+        if device.platform != crate::model::Platform::Windows {
+            return Err(InventoryError::UnsupportedPlatform);
+        }
+        windows::scan_with_icons(device)
+    }
+    #[cfg(not(windows))]
+    {
+        Ok(LocalInventory {
+            snapshot: scan(device)?,
+            icons: Vec::new(),
+        })
+    }
+}
+
 #[cfg(any(windows, test))]
 mod records {
     use super::*;
@@ -89,6 +121,7 @@ mod records {
         pub location: Option<String>,
         pub uninstall: Option<String>,
         pub windows_installer: bool,
+        pub icon: Option<String>,
     }
 
     #[derive(Default)]
@@ -103,6 +136,7 @@ mod records {
         pub parent_name: Option<String>,
         pub release_type: Option<String>,
         pub windows_installer: Option<u32>,
+        pub icon: Option<String>,
     }
 
     pub(super) fn text(value: Option<String>, max: usize) -> Result<Option<String>, &'static str> {
@@ -167,6 +201,7 @@ mod records {
             location: text(raw.location, 4096)?,
             uninstall: text(raw.uninstall, 4096)?,
             windows_installer: raw.windows_installer == Some(1),
+            icon: text(raw.icon, 4096).ok().flatten(),
         }))
     }
 
@@ -184,7 +219,15 @@ mod records {
                 || (a.windows_installer && uuid::Uuid::parse_str(&a.key).is_ok()))
     }
 
+    #[cfg(test)]
     pub(super) fn applications(entries: Vec<Entry>) -> Result<Vec<InstalledApp>, InventoryError> {
+        applications_with_icons(entries, &mut Vec::new())
+    }
+
+    pub(super) fn applications_with_icons(
+        entries: Vec<Entry>,
+        icons: &mut Vec<LocalIconSource>,
+    ) -> Result<Vec<InstalledApp>, InventoryError> {
         let mut groups: HashMap<(u8, String), Vec<Entry>> = HashMap::new();
         for observation in entries {
             let scope = if observation.scope == InstallScope::User {
@@ -215,6 +258,15 @@ mod records {
                 let identity = format!("kitlane:windows-uninstall:{scope}:{view}:{key}");
                 let id =
                     uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, identity.as_bytes()).to_string();
+                if item.icon.is_some() || item.location.is_some() || item.uninstall.is_some() {
+                    icons.push(LocalIconSource {
+                        app_id: id.clone(),
+                        app_name: item.name.clone(),
+                        display_icon: item.icon,
+                        install_location: item.location,
+                        uninstall: item.uninstall,
+                    });
+                }
                 apps.push(InstalledApp {
                     id,
                     name: item.name,
@@ -302,6 +354,45 @@ mod records {
                 entry("Key".into(), View::X64, InstallScope::User, legitimate)
                     .unwrap()
                     .is_some()
+            );
+        }
+
+        #[test]
+        fn icon_locations_stay_local_and_bad_icon_metadata_does_not_remove_apps() {
+            let observation = entry(
+                "Example".into(),
+                View::X64,
+                InstallScope::User,
+                Metadata {
+                    name: Some("Example".into()),
+                    icon: Some("bad\nicon".into()),
+                    ..Metadata::default()
+                },
+            )
+            .unwrap()
+            .unwrap();
+            let mut icons = Vec::new();
+            let apps = applications_with_icons(vec![observation], &mut icons).unwrap();
+            assert_eq!(apps.len(), 1);
+            assert!(icons.is_empty());
+            let observation = entry(
+                "Example".into(),
+                View::X64,
+                InstallScope::User,
+                Metadata {
+                    name: Some("Example".into()),
+                    icon: Some(r"C:\Apps\Example.exe,0".into()),
+                    ..Metadata::default()
+                },
+            )
+            .unwrap()
+            .unwrap();
+            let apps = applications_with_icons(vec![observation], &mut icons).unwrap();
+            assert_eq!(icons[0].app_id, apps[0].id);
+            assert!(
+                !serde_json::to_string(&apps)
+                    .unwrap()
+                    .contains("Example.exe")
             );
         }
 
@@ -515,10 +606,15 @@ mod windows {
             parent_name: string_value(key, "ParentDisplayName")?,
             release_type: string_value(key, "ReleaseType")?,
             windows_installer: dword_value(key, "WindowsInstaller")?,
+            icon: string_value(key, "DisplayIcon").ok().flatten(),
         })
     }
 
     pub(super) fn scan(device: DeviceInfo) -> Result<InventorySnapshot, InventoryError> {
+        scan_with_icons(device).map(|local| local.snapshot)
+    }
+
+    pub(super) fn scan_with_icons(device: DeviceInfo) -> Result<LocalInventory, InventoryError> {
         let mut warnings = vec![COVERAGE.into()];
         let mut entries = Vec::new();
         let mut visited = 0;
@@ -592,16 +688,17 @@ mod windows {
         if scanned_at_unix_secs == 0 {
             return Err(InventoryError::InvalidClock);
         }
+        let mut icons = Vec::new();
         let snapshot = InventorySnapshot {
             device,
             scanned_at_unix_secs,
-            apps: applications(entries)?,
+            apps: applications_with_icons(entries, &mut icons)?,
             warnings,
         };
         snapshot
             .validate()
             .map_err(InventoryError::InvalidSnapshot)?;
-        Ok(snapshot)
+        Ok(LocalInventory { snapshot, icons })
     }
 
     #[cfg(test)]
