@@ -161,8 +161,12 @@ fn endpoint(value: &str) -> Result<String, Error> {
     }
     Ok(format!("http://127.0.0.1:{port}"))
 }
-fn valid_token(value: &str) -> bool {
+pub fn valid_token(value: &str) -> bool {
     value.len() == 64 && value.bytes().all(|b| b.is_ascii_hexdigit())
+}
+/// Validate a service address without starting an HTTP client or accessing credentials.
+pub fn validate_endpoint(value: &str) -> Result<(), Error> {
+    endpoint(value).map(|_| ())
 }
 impl Client {
     pub fn new(endpoint: &str, device: &DeviceInfo) -> Result<Self, Error> {

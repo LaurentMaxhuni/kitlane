@@ -8,6 +8,7 @@ fn main() -> eframe::Result {
     let options = eframe::NativeOptions {
         viewport: eframe::egui::ViewportBuilder::default()
             .with_inner_size([1200.0, 780.0])
+            .with_decorations(false)
             .with_icon(
                 eframe::icon_data::from_png_bytes(include_bytes!(
                     "../../design-system/assets/icons/app-icon-128.png"

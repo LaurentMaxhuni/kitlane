@@ -6,7 +6,7 @@ use kitlane_core::{
     model::{InstallScope, InventorySource},
 };
 
-fn card(p: &Palette) -> Frame {
+pub(super) fn card(p: &Palette) -> Frame {
     Frame::new()
         .fill(p.surface)
         .stroke(Stroke::new(1.0, p.border))
@@ -14,7 +14,7 @@ fn card(p: &Palette) -> Frame {
         .inner_margin(20)
 }
 
-fn caption(ui: &mut egui::Ui, text: impl Into<String>, p: &Palette) {
+pub(super) fn caption(ui: &mut egui::Ui, text: impl Into<String>, p: &Palette) {
     ui.label(RichText::new(text).size(12.0).color(p.muted));
 }
 
@@ -28,7 +28,7 @@ fn badge(ui: &mut egui::Ui, text: &str, color: Color32, fill: Color32) {
         });
 }
 
-fn primary(text: &str, p: &Palette, enabled: bool) -> egui::Button<'static> {
+pub(super) fn primary(text: &str, p: &Palette, enabled: bool) -> egui::Button<'static> {
     egui::Button::new(RichText::new(text.to_owned()).color(if enabled {
         p.action_text
     } else {
@@ -43,7 +43,7 @@ fn primary(text: &str, p: &Palette, enabled: bool) -> egui::Button<'static> {
     .min_size(Vec2::new(120.0, 42.0))
 }
 
-fn brand(ui: &mut egui::Ui, dark: bool, compact: bool) {
+pub(super) fn brand(ui: &mut egui::Ui, dark: bool, compact: bool) {
     ui.horizontal(|ui| {
         ui.add(
             egui::Image::from_bytes(
@@ -95,7 +95,7 @@ impl KitlaneApp {
     fn setup_view(&mut self, ui: &mut egui::Ui) {
         let p = theme::palette(self.dark);
         egui::CentralPanel::default().frame(Frame::new().fill(p.bg).inner_margin(24)).show(ui, |ui| {
-            egui::ScrollArea::vertical().show(ui, |ui| {
+            egui::ScrollArea::vertical().animated(!self.settings.reduced_motion).show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.add_space(((ui.available_width() - 640.0) / 2.0).max(0.0));
                     ui.vertical(|ui| {
@@ -111,7 +111,7 @@ impl KitlaneApp {
                 if self.device.is_none() {
                     ui.heading("Getting your workspace ready");
                     if let Some(error) = &self.error { ui.colored_label(p.danger_text, error); }
-                    else { ui.spinner(); }
+                    else { theme::activity(ui); }
                     return;
                 }
                 let titles = ["A little setup. A clearer workspace.", "Make Kitlane feel like yours", "Tell us about this computer", "Ready when you are"];
@@ -141,6 +141,7 @@ impl KitlaneApp {
                             });
                             ui.add_space(12.0);
                             caption(ui, "You can change appearance later in Settings.", p);
+                            if ui.checkbox(&mut self.settings.reduced_motion, "Reduced motion").changed() { theme::motion(ui.ctx(), self.settings.reduced_motion); }
                         }
                         2 => {
                             let label = ui.label("What should we call this device?");
@@ -169,7 +170,7 @@ impl KitlaneApp {
                     if step > 0 && ui.add_enabled(!self.setup_busy, egui::Button::new("Back").min_size(Vec2::new(100.0, 42.0))).clicked() { self.save_setup_step(step - 1, false); }
                     let enabled = !self.setup_busy && valid;
                     if ui.add_enabled(enabled, primary(if step == 3 { "Open Kitlane" } else { "Continue" }, p, enabled)).clicked() { self.save_setup_step((step + 1).min(3), step == 3); }
-                    if self.setup_busy { ui.spinner(); ui.label("Saving your choices…"); }
+                    if self.setup_busy { theme::activity(ui); ui.label("Saving your choices…"); }
                 });
                     });
                 });
@@ -201,7 +202,22 @@ impl KitlaneApp {
             } else {
                 Vec2::new(ui.available_width(), 44.0)
             };
-            if ui.add_sized(size, button).clicked() {
+            let response = ui.add_sized(size, button);
+            let hover = ui.ctx().animate_bool(
+                response.id.with("accent"),
+                response.hovered() || response.has_focus() || selected,
+            );
+            if hover > 0.0 {
+                ui.painter().rect_filled(
+                    egui::Rect::from_min_size(
+                        response.rect.left_top() + Vec2::new(2.0, 10.0),
+                        Vec2::new(3.0, response.rect.height() - 20.0),
+                    ),
+                    2,
+                    p.info_text.gamma_multiply(hover),
+                );
+            }
+            if response.clicked() {
                 self.page = page;
             }
         }
@@ -209,8 +225,23 @@ impl KitlaneApp {
 
     pub(super) fn content(&mut self, ui: &mut egui::Ui) {
         self.receive_events(ui.ctx());
+        theme::motion(ui.ctx(), self.settings.reduced_motion);
+        self.window_chrome(ui);
+        let key = (self.page, self.onboarding, self.settings.onboarding_step);
+        if self.transition_key != Some(key) {
+            self.transition_key = Some(key);
+            ui.ctx()
+                .animate_bool_with_time(egui::Id::new("page-enter"), false, 0.0);
+        }
+        let enter = if self.settings.reduced_motion {
+            1.0
+        } else {
+            ui.ctx().animate_bool(egui::Id::new("page-enter"), true)
+        };
+        ui.multiply_opacity(0.45 + enter * 0.55);
         if self.onboarding || (self.worker.is_some() && self.device.is_none()) {
             self.setup_view(ui);
+            self.pairing_wizard(ui.ctx());
             return;
         }
         let p = theme::palette(self.dark);
@@ -223,7 +254,6 @@ impl KitlaneApp {
                         .inner_margin(Margin::symmetric(20, 12)),
                 )
                 .show(ui, |ui| {
-                    brand(ui, self.dark, true);
                     ui.add_space(8.0);
                     ui.horizontal_wrapped(|ui| self.navigation(ui, true));
                 });
@@ -237,9 +267,9 @@ impl KitlaneApp {
                         .inner_margin(Margin::symmetric(20, 28)),
                 )
                 .show(ui, |ui| {
-                    brand(ui, self.dark, false);
+                    ui.label(RichText::new("Workspace").size(16.0).strong());
                     ui.add_space(40.0);
-                    caption(ui, "WORKSPACE", p);
+                    caption(ui, "EXPLORE", p);
                     ui.add_space(12.0);
                     self.navigation(ui, false);
                     ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
@@ -293,24 +323,28 @@ impl KitlaneApp {
                     Page::Library => {
                         let height = ui.available_height();
                         egui::ScrollArea::vertical()
+                            .animated(!self.settings.reduced_motion)
                             .id_salt("library-page")
                             .show(ui, |ui| self.library_view(ui, height))
                             .inner
                     }
                     Page::Devices => {
                         egui::ScrollArea::vertical()
+                            .animated(!self.settings.reduced_motion)
                             .id_salt("devices-page")
                             .show(ui, |ui| self.devices_view(ui))
                             .inner
                     }
                     Page::Settings => {
                         egui::ScrollArea::vertical()
+                            .animated(!self.settings.reduced_motion)
                             .id_salt("settings-page")
                             .show(ui, |ui| self.settings_view(ui))
                             .inner
                     }
                 }
             });
+        self.pairing_wizard(ui.ctx());
     }
 
     fn library_view(&mut self, ui: &mut egui::Ui, height: f32) {
@@ -449,7 +483,7 @@ impl KitlaneApp {
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 ui.set_min_width(ui.available_width());
                 if self.scanning {
-                    ui.spinner();
+                    theme::activity(ui);
                     ui.label(RichText::new("Scanning…").size(12.0).color(p.muted));
                 } else {
                     caption(ui, format!("{} apps shown", self.rows.len()), p);
@@ -457,6 +491,27 @@ impl KitlaneApp {
             });
         });
         ui.add_space(12.0);
+        ui.horizontal_wrapped(|ui| {
+            for (filter, label) in [
+                (LibraryFilter::All, "All apps"),
+                (LibraryFilter::Known, "Catalog matches"),
+                (LibraryFilter::Unknown, "Unmatched"),
+            ] {
+                if ui
+                    .selectable_label(self.library_filter == filter, label)
+                    .clicked()
+                {
+                    self.library_filter = filter;
+                    self.filter_rows();
+                }
+            }
+            if !self.query.is_empty() && ui.button("Clear search").clicked() {
+                self.query.clear();
+                self.filter_rows();
+            }
+        });
+        ui.add_space(12.0);
+        self.library_details(ui);
         if self.cached {
             caption(
                 ui,
@@ -508,6 +563,7 @@ impl KitlaneApp {
                 .show(ui, |ui| {
                     ui.style_mut().spacing.scroll = egui::style::ScrollStyle::solid();
                     egui::ScrollArea::horizontal()
+                        .animated(!self.settings.reduced_motion)
                         .id_salt("library-horizontal")
                         .scroll_bar_visibility(if row_width > ui.available_width() + 32.0 {
                             egui::scroll_area::ScrollBarVisibility::AlwaysVisible
@@ -541,41 +597,47 @@ impl KitlaneApp {
                                         let index = self.rows[row.index()];
                                         let app = &snapshot.apps[index];
                                         row.col(|ui| {
-                                            Frame::new()
-                                                .fill(p.bg)
-                                                .corner_radius(10)
-                                                .inner_margin(10)
-                                                .show(ui, |ui| {
-                                                    let letter = app
-                                                        .name
-                                                        .chars()
-                                                        .next()
-                                                        .unwrap_or('?')
-                                                        .to_uppercase()
-                                                        .to_string();
-                                                    ui.add_sized(
-                                                        [22.0, 22.0],
-                                                        egui::Label::new(
-                                                            RichText::new(letter)
-                                                                .size(18.0)
-                                                                .color(p.text),
-                                                        ),
-                                                    );
-                                                });
+                                            logos::show(ui, app, self.matches.get(index), p);
                                             ui.allocate_ui_with_layout(
                                                 Vec2::new(ui.available_width(), 42.0),
                                                 egui::Layout::top_down(egui::Align::LEFT),
                                                 |ui| {
                                                     ui.set_min_height(42.0);
-                                                    ui.add(
-                                                        egui::Label::new(
-                                                            RichText::new(&app.name)
-                                                                .size(14.0)
-                                                                .strong(),
+                                                    let response = ui
+                                                        .add(
+                                                            egui::Label::new(
+                                                                RichText::new(&app.name)
+                                                                    .size(14.0)
+                                                                    .strong(),
+                                                            )
+                                                            .truncate()
+                                                            .sense(egui::Sense::click()),
                                                         )
-                                                        .truncate(),
-                                                    )
-                                                    .on_hover_text(&app.name);
+                                                        .on_hover_text(format!(
+                                                            "{} · Click for app details",
+                                                            app.name
+                                                        ));
+                                                    response.widget_info(|| {
+                                                        egui::WidgetInfo::labeled(
+                                                            egui::WidgetType::Button,
+                                                            true,
+                                                            format!(
+                                                                "Show details for {}",
+                                                                app.name
+                                                            ),
+                                                        )
+                                                    });
+                                                    theme::feedback(ui, &response);
+                                                    if response.clicked() {
+                                                        self.selected_app =
+                                                            if self.selected_app.as_deref()
+                                                                == Some(&app.id)
+                                                            {
+                                                                None
+                                                            } else {
+                                                                Some(app.id.clone())
+                                                            };
+                                                    }
                                                     let scope = match app.scope {
                                                         InstallScope::User => "User",
                                                         InstallScope::Machine => "Machine",
@@ -715,169 +777,6 @@ impl KitlaneApp {
         });
     }
 
-    fn devices_view(&mut self, ui: &mut egui::Ui) {
-        let p = theme::palette(self.dark);
-        caption(ui, "YOUR WORKSPACE", p);
-        ui.heading("Your computers");
-        ui.label(
-            RichText::new("A clear view of each setup, with you in control of sharing.")
-                .color(p.muted),
-        );
-        ui.add_space(24.0);
-        if let Some(device) = &self.device {
-            card(p).show(ui, |ui| {
-                ui.set_min_width(ui.available_width());
-                ui.horizontal(|ui| {
-                    Frame::new()
-                        .fill(p.selected)
-                        .corner_radius(12)
-                        .inner_margin(16)
-                        .show(ui, |ui| {
-                            theme::icon(ui, Icon::Monitor, 32.0, p.info_text);
-                        });
-                    ui.add_space(12.0);
-                    ui.vertical(|ui| {
-                        ui.label(RichText::new(&device.name).size(18.0));
-                        caption(
-                            ui,
-                            format!("{} · {}", device.platform.label(), device.architecture),
-                            p,
-                        );
-                        badge(ui, "This computer", p.info_text, p.info_bg);
-                    });
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        ui.set_min_width(ui.available_width());
-                        let button = egui::Button::image_and_text(
-                            theme::icon_image(Icon::Copy, 16.0, p.text),
-                            "Copy identity",
-                        );
-                        if ui
-                            .add(button)
-                            .on_hover_text("Copy this device's pairing metadata.")
-                            .clicked()
-                            && let Ok(identity) = serde_json::to_string(device)
-                        {
-                            ui.ctx().copy_text(identity);
-                        }
-                    });
-                });
-                ui.add_space(12.0);
-                ui.collapsing("Device identity", |ui| {
-                    ui.monospace(&device.id);
-                });
-            });
-            ui.add_space(16.0);
-        }
-        for peer in &self.peers {
-            card(p).show(ui, |ui| {
-                ui.set_min_width(ui.available_width());
-                ui.horizontal(|ui| {
-                    theme::icon(ui, Icon::Devices, 26.0, p.muted);
-                    ui.vertical(|ui| {
-                        ui.label(RichText::new(&peer.device.name).size(16.0));
-                        caption(
-                            ui,
-                            format!(
-                                "{} · {} apps",
-                                peer.device.platform.label(),
-                                peer.apps.len()
-                            ),
-                            p,
-                        );
-                    });
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        ui.set_min_width(ui.available_width());
-                        badge(ui, "Shared inventory", p.info_text, p.info_bg);
-                    });
-                });
-            });
-            ui.add_space(16.0);
-        }
-        card(p).show(ui, |ui| { ui.set_min_width(ui.available_width());
-            ui.horizontal(|ui| {
-                ui.label(RichText::new("Connect your setup").size(18.0));
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| { ui.set_min_width(ui.available_width()); badge(ui, if self.sync.enrolled { "Enrolled" } else { "Local only" }, p.info_text, p.info_bg); });
-            });
-            caption(ui, "Connect to your local Kitlane sync service. Remote-device transport is not available yet.", p);
-            ui.add_space(16.0);
-            ui.add_enabled_ui(!self.sync.busy, |ui| {
-                ui.label("Service address");
-                if ui.add_sized([ui.available_width(), 42.0], egui::TextEdit::singleline(&mut self.sync.endpoint).hint_text("http://127.0.0.1:8787")).changed() {
-                    self.sync.enrolled = false; self.sync.consent = false; self.sync.pairing_token.zeroize(); self.peers.clear(); self.plans.clear(); self.sync.message = None;
-                }
-                ui.add_space(8.0);
-                caption(ui, "Enrolled devices under this owner can read your app names, publishers, versions, and device metadata.", p);
-                ui.checkbox(&mut self.sync.consent, "I agree to share inventory with this service and its enrolled devices");
-                ui.add_space(12.0);
-                ui.label("Pairing token");
-                ui.add_sized([ui.available_width(), 42.0], egui::TextEdit::singleline(&mut self.sync.pairing_token).password(true).char_limit(64).hint_text("Paste the token issued by your service owner"));
-                ui.add_space(16.0);
-                let ready = self.device.is_some() && self.worker.is_some();
-                let enroll_ready = ready && self.sync.consent && !self.sync.enrolled && self.sync.pairing_token.len() == 64;
-                let sync_ready = ready && self.sync.consent && self.sync.enrolled && self.snapshot.is_some() && !self.scanning;
-                ui.horizontal_wrapped(|ui| {
-                    if ui.add_enabled(enroll_ready, primary("Enroll this device", p, enroll_ready)).clicked() {
-                        let pairing_token = zeroize::Zeroizing::new(std::mem::take(&mut self.sync.pairing_token));
-                        self.send_sync(Command::Enroll { endpoint: self.sync.endpoint.clone(), pairing_token });
-                    }
-                    if ui.add_enabled(sync_ready, primary("Sync now", p, sync_ready)).clicked()
-                        && let Some(snapshot) = self.snapshot.clone() { self.send_sync(Command::Sync { endpoint: self.sync.endpoint.clone(), snapshot: Box::new(snapshot) }); }
-                    if ui.add_enabled(ready, egui::Button::new("Check saved enrollment")).clicked() { self.send_sync(Command::CheckEnrollment { endpoint: self.sync.endpoint.clone() }); }
-                });
-                ui.add_space(12.0);
-                ui.collapsing("Credential recovery & removal", |ui| {
-                    caption(ui, "For lost enrollment credentials, ask the service owner for a recovery pairing token. Forgetting a local credential does not revoke it on the service.", p);
-                    if ui.add_enabled(ready, egui::Button::new(RichText::new("Forget credential").color(p.danger_text))).clicked() { self.send_sync(Command::Disconnect { endpoint: self.sync.endpoint.clone() }); }
-                });
-            });
-            if self.sync.busy { ui.horizontal(|ui| { ui.spinner(); caption(ui, "Working with the sync service…", p); }); }
-            if let Some(message) = &self.sync.message { ui.add_space(12.0); caption(ui, message, p); }
-        });
-        if !self.plans.is_empty() {
-            ui.add_space(24.0);
-            ui.label(RichText::new("Compatibility proposals").size(18.0));
-            caption(
-                ui,
-                "Review only. No programs are installed, updated, or removed.",
-                p,
-            );
-            ui.add_space(12.0);
-            card(p).show(ui, |ui| {
-                ui.set_min_width(ui.available_width());
-                egui::ScrollArea::vertical()
-                    .id_salt("compatibility-plans")
-                    .max_height(320.0)
-                    .show_rows(ui, 64.0, self.plans.len(), |ui, range| {
-                        for index in range {
-                            let plan = &self.plans[index];
-                            ui.allocate_ui(Vec2::new(ui.available_width(), 64.0), |ui| {
-                                ui.horizontal(|ui| {
-                                    ui.add(
-                                        egui::Label::new(RichText::new(&plan.name).strong())
-                                            .truncate(),
-                                    )
-                                    .on_hover_text(&plan.name);
-                                    ui.with_layout(
-                                        egui::Layout::right_to_left(egui::Align::Center),
-                                        |ui| {
-                                            badge(ui, plan.status.label(), p.muted, p.bg);
-                                        },
-                                    );
-                                });
-                                ui.add(
-                                    egui::Label::new(
-                                        RichText::new(&plan.reason).size(12.0).color(p.muted),
-                                    )
-                                    .truncate(),
-                                )
-                                .on_hover_text(&plan.reason);
-                            });
-                        }
-                    });
-            });
-        }
-    }
-
     fn settings_view(&mut self, ui: &mut egui::Ui) {
         let p = theme::palette(self.dark);
         caption(ui, "YOUR WORKSPACE", p);
@@ -910,18 +809,13 @@ impl KitlaneApp {
                         .clicked()
                         && !selected
                     {
-                        self.dark = dark;
-                        theme::apply(ui.ctx(), dark);
-                        if let Some(worker) = &self.worker
-                            && let Err(error) =
-                                worker.try_send(Command::SaveSettings(AppSettings {
-                                    dark_theme: dark,
-                                    ..self.settings.clone()
-                                }))
-                        {
-                            self.error = Some(format!("Appearance could not be saved: {error}"));
-                        }
-                        self.settings.dark_theme = dark;
+                        self.save_preferences(
+                            AppSettings {
+                                dark_theme: dark,
+                                ..self.settings.clone()
+                            },
+                            ui.ctx(),
+                        );
                     }
                 }
             });
@@ -936,6 +830,9 @@ impl KitlaneApp {
         card(p).show(ui, |ui| {
             ui.set_min_width(ui.available_width());
             ui.label(RichText::new("Library preferences").size(18.0));
+            let mut reduced = self.settings.reduced_motion;
+            if ui.checkbox(&mut reduced, "Reduced motion").changed() { self.save_preferences(AppSettings { reduced_motion: reduced, ..self.settings.clone() }, ui.ctx()); }
+            caption(ui, "Use instant transitions and static loading indicators. Your choice is saved for this computer.", p);
             let mut scan = self.settings.scan_on_startup;
             if ui
                 .checkbox(&mut scan, "Scan installed apps on launch")

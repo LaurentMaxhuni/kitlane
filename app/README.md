@@ -55,6 +55,16 @@ cargo run --bin ui-preview -- --page setup-device --theme dark --state normal --
 
 Preview pages also include `welcome`, `appearance`, and `setup-review`.
 
+## Desktop interactions
+
+The native window uses a branded title bar with appearance switching, drag, double-click maximize/restore, labeled window controls, and resize targets on all edges. Navigation and control feedback use short transitions; page and wizard steps fade in, and detail sections expand. Settings saves Reduced motion, which makes transitions immediate, disables programmatic scroll animation, and uses static loading indicators. Idle screens do not continuously repaint. Scrollbars remain thin and subdued until hovered.
+
+Library includes All apps / Catalog matches / Unmatched filters, Clear search, and clickable names that reveal expandable details and Copy app information. Logos for Visual Studio Code, VLC, Notepad++, and Blender are embedded unchanged and link to official websites. Unknown programs use an initial tile. See [asset sources and attribution](assets/programs/NOTICE.md), also included in Windows installations. No new dependencies, environment variables, or runtime logo services were added.
+
+Devices lists peer snapshots only; this computer's identity and service controls live in the pairing wizard. An empty list centers Connect a device. The wizard guides service selection, token and sharing consent, confirmation, and explicit Sync now. Closing discards the pairing token. Successful connection checks retain the currently displayed peer snapshots. Peer cards show inventory age and expandable compatibility proposals. The service still has no live presence information or remote-device transport; native window behavior outside Windows remains unverified.
+
+Diagnostic pages `pair-service`, `pair-consent`, `pair-review`, and `pair-done` render wizard stages without starting the worker. States `details` and `reduced` exercise app details and reduced motion. Normal Devices fixtures include a synthetic peer; `empty` renders the CTA.
+
 The separate Rust [sync service](sync-server/README.md) provides a local single-owner enrollment/snapshot prototype connected through the [Rust client](sync-client/README.md). In Devices, copy the device identity for the owner, obtain a pairing grant, select inventory-sharing consent, and enroll. Check saved enrollment after restarting, then Sync now to upload this snapshot and retrieve peers. Forget credential removes only the local credential; server revocation requires the owner. Lost credentials can be recovered with an owner-issued recovery grant under the same device ID. Service endpoints are limited to `http://127.0.0.1:<port>`; connecting physical computers remotely and hosted accounts remain future work.
 
 `build.rs` validates and converts shared semantic color tokens into Rust constants at compile time. Inter is embedded once in the executable; neither fonts nor tokens need runtime file access. Keep the font's bundled OFL license with distributed releases. Cargo.lock pins dependency versions; target/ is generated and ignored.

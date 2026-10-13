@@ -20,7 +20,7 @@ mod preview {
         time::{Duration, Instant},
     };
 
-    const USAGE: &str = "ui-preview --page library|devices|settings|welcome|appearance|setup-device|setup-review --theme light|dark --state normal|empty|loading|error|long --width 480..4096 --height 360..2160 --output ABSOLUTE.png";
+    const USAGE: &str = "ui-preview --page library|devices|settings|welcome|appearance|setup-device|setup-review|pair-service|pair-consent|pair-review|pair-done --theme light|dark --state normal|empty|loading|error|long|reduced|details --width 480..4096 --height 360..2160 --output ABSOLUTE.png";
     const TIMEOUT: Duration = Duration::from_secs(15);
 
     #[derive(Debug, PartialEq)]
@@ -67,7 +67,11 @@ mod preview {
                 Some("appearance") => 4,
                 Some("setup-device") => 5,
                 Some("setup-review") => 6,
-                _ => return Err("Page must be library, devices, settings, welcome, appearance, setup-device, or setup-review".into()),
+                Some("pair-service") => 7,
+                Some("pair-consent") => 8,
+                Some("pair-review") => 9,
+                Some("pair-done") => 10,
+                _ => return Err("Unknown preview page. See --help for accepted pages.".into()),
             };
             let dark = match take("--theme")?.to_str() {
                 Some("light") => false,
@@ -79,9 +83,11 @@ mod preview {
                 .map_err(|_| "State must be UTF-8")?;
             if !matches!(
                 state.as_str(),
-                "normal" | "empty" | "loading" | "error" | "long"
+                "normal" | "empty" | "loading" | "error" | "long" | "reduced" | "details"
             ) {
-                return Err("State must be normal, empty, loading, error, or long".into());
+                return Err(
+                    "State must be normal, empty, loading, error, long, reduced, or details".into(),
+                );
             }
             let dimension = |value: OsString, name: &str, min: u32, max: u32| {
                 value

@@ -53,6 +53,7 @@ Source: "{#BinaryPath}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\design-system\assets\icons\app-icon.ico"; DestDir: "{app}"; DestName: "kitlane.ico"; Flags: ignoreversion
 Source: "..\..\design-system\assets\fonts\Inter-OFL.txt"; DestDir: "{app}\licenses"; Flags: ignoreversion
 Source: "..\..\design-system\assets\fonts\Sora-OFL.txt"; DestDir: "{app}\licenses"; Flags: ignoreversion
+Source: "..\assets\programs\NOTICE.md"; DestDir: "{app}\licenses"; DestName: "Program-Logos.md"; Flags: ignoreversion
 
 [Icons]
 Name: "{autoprograms}\Kitlane"; Filename: "{app}\kitlane.exe"; IconFilename: "{app}\kitlane.ico"

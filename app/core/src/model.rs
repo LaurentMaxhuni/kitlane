@@ -89,6 +89,8 @@ pub struct AppSettings {
     pub onboarding_step: u8,
     #[serde(default = "default_scan")]
     pub scan_on_startup: bool,
+    #[serde(default)]
+    pub reduced_motion: bool,
 }
 
 fn default_scan() -> bool {
@@ -102,6 +104,7 @@ impl Default for AppSettings {
             onboarding_completed: false,
             onboarding_step: 0,
             scan_on_startup: true,
+            reduced_motion: false,
         }
     }
 }
@@ -167,6 +170,18 @@ impl InventorySnapshot {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn reduced_motion_defaults_off_and_round_trips() {
+        let mut settings: AppSettings = serde_json::from_str(r#"{"dark_theme":false}"#).unwrap();
+        assert!(!settings.reduced_motion);
+        settings.reduced_motion = true;
+        assert_eq!(
+            serde_json::from_str::<AppSettings>(&serde_json::to_string(&settings).unwrap())
+                .unwrap(),
+            settings
+        );
+    }
 
     #[test]
     fn legacy_settings_keep_appearance_and_require_setup() {

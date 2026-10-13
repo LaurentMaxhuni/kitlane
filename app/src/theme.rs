@@ -86,6 +86,14 @@ pub fn apply(ctx: &egui::Context, dark: bool) {
     style.spacing.window_margin = egui::Margin::same(24);
     style.spacing.menu_margin = egui::Margin::same(8);
     style.animation_time = 0.16;
+    style.spacing.scroll.floating = true;
+    style.spacing.scroll.bar_width = 7.0;
+    style.spacing.scroll.floating_width = 3.0;
+    style.spacing.scroll.floating_allocated_width = 3.0;
+    style.spacing.scroll.dormant_handle_opacity = 0.25;
+    style.spacing.scroll.active_handle_opacity = 0.5;
+    style.spacing.scroll.interact_handle_opacity = 0.85;
+    style.spacing.scroll.dormant_background_opacity = 0.0;
     let mut v = if dark {
         egui::Visuals::dark()
     } else {
@@ -141,6 +149,46 @@ pub fn apply(ctx: &egui::Context, dark: bool) {
     ctx.set_theme(mode);
 }
 
+pub fn motion(ctx: &egui::Context, reduced: bool) {
+    let duration = if reduced { 0.0 } else { 0.16 };
+    if ctx.global_style().animation_time != duration {
+        ctx.global_style_mut(|style| style.animation_time = duration);
+        if reduced {
+            ctx.clear_animations();
+        }
+    }
+}
+
+pub fn activity(ui: &mut egui::Ui) {
+    if ui.style().animation_time == 0.0 {
+        icon(ui, Icon::Refresh, 18.0, ui.visuals().weak_text_color());
+    } else {
+        ui.spinner();
+    }
+}
+
+pub fn feedback(ui: &egui::Ui, response: &Response) {
+    let amount = ui.ctx().animate_bool(
+        response.id.with("feedback"),
+        response.hovered() || response.has_focus(),
+    );
+    if amount > 0.0 && response.enabled() {
+        ui.painter().rect_stroke(
+            response.rect.expand(1.0),
+            8,
+            Stroke::new(
+                1.0,
+                ui.visuals()
+                    .selection
+                    .stroke
+                    .color
+                    .gamma_multiply(amount * 0.6),
+            ),
+            egui::StrokeKind::Outside,
+        );
+    }
+}
+
 #[derive(Clone, Copy)]
 pub enum Icon {
     Library,
@@ -154,6 +202,7 @@ pub enum Icon {
     Sun,
     Moon,
     Alert,
+    Plus,
 }
 
 pub fn icon(ui: &mut egui::Ui, kind: Icon, size: f32, color: Color32) -> Response {
@@ -194,6 +243,7 @@ pub fn icon_image(kind: Icon, size: f32, color: Color32) -> egui::Image<'static>
         Icon::Sun => asset!("sun"),
         Icon::Moon => asset!("moon"),
         Icon::Alert => asset!("circle-alert"),
+        Icon::Plus => asset!("plus"),
     };
     egui::Image::from_bytes(uri, bytes)
         .fit_to_exact_size(egui::vec2(size, size))

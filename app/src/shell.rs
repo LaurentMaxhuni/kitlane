@@ -1,3 +1,13 @@
+#[path = "chrome.rs"]
+mod chrome;
+#[path = "devices.rs"]
+mod devices;
+#[path = "library.rs"]
+mod library;
+#[path = "logos.rs"]
+mod logos;
+#[path = "pairing.rs"]
+mod pairing;
 #[path = "view.rs"]
 mod view;
 
@@ -17,6 +27,22 @@ enum Page {
     Library,
     Devices,
     Settings,
+}
+
+#[derive(Clone, Copy, Default, PartialEq, Eq)]
+enum LibraryFilter {
+    #[default]
+    All,
+    Known,
+    Unknown,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum PairingStep {
+    Service,
+    Consent,
+    Review,
+    Done,
 }
 
 struct SyncUi {
@@ -69,6 +95,11 @@ pub struct KitlaneApp {
     sync: SyncUi,
     peers: Vec<InventorySnapshot>,
     plans: Vec<PlanEntry>,
+    library_filter: LibraryFilter,
+    selected_app: Option<String>,
+    pairing: Option<PairingStep>,
+    pairing_transition: Option<PairingStep>,
+    transition_key: Option<(Page, bool, u8)>,
 }
 
 impl KitlaneApp {
@@ -138,10 +169,44 @@ impl KitlaneApp {
         if state == "error" {
             app.error = Some("Inventory scan failed. Your saved library is still available. Try refreshing again.".into());
         }
-        if page >= 3 {
+        if (3..=6).contains(&page) {
             app.onboarding = true;
             app.settings.onboarding_step = (page - 3).min(3) as u8;
             app.setup_name = "Studio workstation".into();
+        }
+        if page >= 7 {
+            app.page = Page::Devices;
+            app.pairing = Some(match page {
+                8 => PairingStep::Consent,
+                9 => PairingStep::Review,
+                10 => PairingStep::Done,
+                _ => PairingStep::Service,
+            });
+            app.sync.consent = true;
+            app.sync.enrolled = page == 10;
+        }
+        if page == 1 && state == "normal" {
+            let mut peer = app.snapshot.clone().unwrap();
+            peer.device.id = kitlane_core::new_device_id();
+            peer.device.name = "Design laptop".into();
+            peer.device.platform = Platform::Macos;
+            peer.scanned_at_unix_secs = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs()
+                .saturating_sub(900);
+            app.peers.push(peer);
+            app.sync.enrolled = true;
+            app.rebuild_plans();
+        }
+        if state == "reduced" {
+            app.settings.reduced_motion = true;
+        }
+        if state == "details" {
+            app.selected_app = app
+                .snapshot
+                .as_ref()
+                .and_then(|snapshot| snapshot.apps.first().map(|app| app.id.clone()));
         }
         app
     }
@@ -215,6 +280,9 @@ impl KitlaneApp {
                         } else {
                             Page::Library
                         };
+                        if self.setup_pair {
+                            self.open_pairing();
+                        }
                         if self.settings.scan_on_startup {
                             self.scan();
                         }
@@ -240,8 +308,13 @@ impl KitlaneApp {
                 Event::EnrollmentState(enrolled) => {
                     self.sync.busy = false;
                     self.sync.enrolled = enrolled;
-                    self.peers.clear();
-                    self.plans.clear();
+                    if !enrolled {
+                        self.peers.clear();
+                        self.plans.clear();
+                    }
+                    if enrolled && self.pairing.is_some() {
+                        self.pairing = Some(PairingStep::Done);
+                    }
                     self.sync.message = Some(
                         if enrolled {
                             "Credential saved. Sync runs only when you click Sync now."
@@ -253,7 +326,14 @@ impl KitlaneApp {
                 }
                 Event::Synced(peers) => {
                     self.sync.busy = false;
-                    self.peers = peers;
+                    self.peers = peers
+                        .into_iter()
+                        .filter(|peer| {
+                            self.device
+                                .as_ref()
+                                .is_none_or(|device| device.id != peer.device.id)
+                        })
+                        .collect();
                     self.rebuild_plans();
                     self.sync.message =
                         Some("Inventory shared and peer snapshots refreshed.".into());
@@ -328,7 +408,15 @@ impl KitlaneApp {
             .search_names
             .iter()
             .enumerate()
-            .filter_map(|(index, name)| name.contains(&query).then_some(index))
+            .filter_map(|(index, name)| {
+                let known = matches!(self.matches.get(index), Some(MatchOutcome::Matched(_)));
+                let visible = match self.library_filter {
+                    LibraryFilter::All => true,
+                    LibraryFilter::Known => known,
+                    LibraryFilter::Unknown => !known,
+                };
+                (visible && name.contains(&query)).then_some(index)
+            })
             .collect();
     }
 }
@@ -342,6 +430,52 @@ impl eframe::App for KitlaneApp {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn reduced_motion_loading_does_not_schedule_continuous_repaint() {
+        let ctx = egui::Context::default();
+        crate::theme::install_fonts(&ctx);
+        crate::theme::apply(&ctx, true);
+        egui_extras::install_image_loaders(&ctx);
+        let mut app = KitlaneApp::preview(0, true, "loading");
+        app.settings.reduced_motion = true;
+        for frame in 0..6 {
+            let input = egui::RawInput {
+                time: Some(frame as f64),
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(1000.0, 700.0),
+                )),
+                ..Default::default()
+            };
+            let mut output = ctx.run_ui(input, |ui| app.content(ui));
+            output.textures_delta.clear();
+            if frame == 5 {
+                assert!(
+                    output.viewport_output[&egui::ViewportId::ROOT].repaint_delay
+                        > std::time::Duration::ZERO
+                );
+            }
+        }
+        assert_eq!(ctx.global_style().animation_time, 0.0);
+    }
+
+    #[test]
+    fn filters_combine_with_search_and_keep_unknown_apps() {
+        let mut app = KitlaneApp::preview(0, false, "normal");
+        app.library_filter = LibraryFilter::Known;
+        app.filter_rows();
+        assert_eq!(app.rows.len(), 3);
+        app.library_filter = LibraryFilter::Unknown;
+        app.filter_rows();
+        assert_eq!(app.rows.len(), 4);
+        app.query = "figma".into();
+        app.filter_rows();
+        assert_eq!(app.rows.len(), 1);
+        app.library_filter = LibraryFilter::Known;
+        app.filter_rows();
+        assert!(app.rows.is_empty());
+    }
 
     #[test]
     fn onboarding_blocks_scans_until_successful_completion() {
@@ -531,6 +665,10 @@ mod tests {
             output.textures_delta.clear();
         };
         press(&mut app, None);
+        // Window controls precede sidebar navigation in keyboard focus order.
+        for _ in 0..4 {
+            press(&mut app, Some(egui::Key::Tab));
+        }
         press(&mut app, Some(egui::Key::Tab));
         assert!(ctx.memory(|memory| memory.focused()).is_some());
         press(&mut app, Some(egui::Key::Tab));
