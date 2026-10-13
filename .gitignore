@@ -5,4 +5,7 @@ Thumbs.db
 target/
 graphify-out/
 dist/
+.env
+.env.*
+!.env.example
 
