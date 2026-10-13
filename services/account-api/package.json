@@ -1,0 +1,26 @@
+{
+  "name": "kitlane-account-api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "tsx --test test/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "build": "tsx scripts/build.ts"
+  },
+  "dependencies": {
+    "@neon/config": "1.9.1",
+    "@neon/functions": "0.11.0",
+    "@neondatabase/auth": "0.6.0-beta",
+    "hono": "4.13.13",
+    "jose": "6.2.12",
+    "pg": "8.23.1"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.5",
+    "@types/pg": "8.23.1",
+    "esbuild": "0.28.2",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3"
+  }
+}
