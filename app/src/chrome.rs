@@ -1,7 +1,7 @@
 use super::view::{brand, caption};
 use super::*;
 use crate::theme::{self, Icon};
-use egui::{Color32, Frame, Margin, RichText, Sense, Vec2, ViewportCommand};
+use egui::{Color32, Frame, Margin, Sense, Vec2, ViewportCommand};
 
 impl KitlaneApp {
     pub(super) fn save_preferences(&mut self, settings: AppSettings, ctx: &egui::Context) {
@@ -27,7 +27,7 @@ impl KitlaneApp {
                     .inner_margin(Margin::symmetric(16, 4)),
             )
             .show(ui, |ui| {
-                ui.horizontal(|ui| {
+                ui.horizontal_centered(|ui| {
                     let brand_response = ui
                         .horizontal(|ui| brand(ui, self.dark, true))
                         .response
@@ -43,10 +43,12 @@ impl KitlaneApp {
                     }
                     let max = ui.ctx().input(|i| i.viewport().maximized.unwrap_or(false));
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        for (glyph, label, command) in [
-                            ("×", "Close window", ViewportCommand::Close),
+                        ui.style_mut().spacing.button_padding = Vec2::ZERO;
+                        ui.style_mut().spacing.interact_size = Vec2::splat(36.0);
+                        for (icon, label, command) in [
+                            (Icon::Close, "Close window", ViewportCommand::Close),
                             (
-                                if max { "❐" } else { "□" },
+                                if max { Icon::Restore } else { Icon::Maximize },
                                 if max {
                                     "Restore window"
                                 } else {
@@ -54,12 +56,16 @@ impl KitlaneApp {
                                 },
                                 ViewportCommand::Maximized(!max),
                             ),
-                            ("−", "Minimize window", ViewportCommand::Minimized(true)),
+                            (
+                                Icon::Minimize,
+                                "Minimize window",
+                                ViewportCommand::Minimized(true),
+                            ),
                         ] {
                             let response = ui
                                 .add_sized(
                                     [34.0, 34.0],
-                                    egui::Button::new(RichText::new(glyph).size(20.0))
+                                    egui::Button::image(theme::icon_image(icon, 16.0, p.text))
                                         .fill(Color32::TRANSPARENT)
                                         .stroke(egui::Stroke::NONE),
                                 )

@@ -189,6 +189,68 @@ pub fn feedback(ui: &egui::Ui, response: &Response) {
     }
 }
 
+pub fn input(
+    ui: &mut egui::Ui,
+    text: &mut String,
+    hint: &str,
+    password: bool,
+    limit: usize,
+) -> Response {
+    ui.add_sized(
+        [ui.available_width(), 48.0],
+        egui::TextEdit::singleline(text)
+            .hint_text(hint)
+            .password(password)
+            .char_limit(limit)
+            .margin(egui::Margin::symmetric(12, 12))
+            .desired_width(f32::INFINITY),
+    )
+}
+
+pub fn toggle(ui: &mut egui::Ui, checked: &mut bool, text: &str) -> Response {
+    let selected = *checked;
+    ui.scope(|ui| {
+        let p = palette(ui.visuals().dark_mode);
+        let style = ui.style_mut();
+        style.spacing.icon_width = 18.0;
+        style.spacing.icon_width_inner = 12.0;
+        style.visuals.override_text_color = Some(p.text);
+        for widget in [
+            &mut style.visuals.widgets.inactive,
+            &mut style.visuals.widgets.hovered,
+            &mut style.visuals.widgets.active,
+        ] {
+            widget.corner_radius = egui::CornerRadius::same(4);
+            widget.bg_fill = if selected { p.action } else { p.surface_raised };
+            widget.weak_bg_fill = widget.bg_fill;
+            widget.bg_stroke = Stroke::new(1.0, if selected { p.action } else { p.border });
+            widget.fg_stroke = Stroke::new(2.0, if selected { p.action_text } else { p.muted });
+        }
+        ui.checkbox(checked, text)
+    })
+    .inner
+}
+
+pub fn choice(ui: &mut egui::Ui, selected: bool, text: &str) -> Response {
+    let p = palette(ui.visuals().dark_mode);
+    egui::Frame::new()
+        .fill(if selected {
+            p.selected
+        } else {
+            p.surface_raised
+        })
+        .stroke(Stroke::new(1.0, if selected { p.focus } else { p.border }))
+        .corner_radius(8)
+        .inner_margin(12)
+        .show(ui, |ui| {
+            ui.with_layout(egui::Layout::top_down(egui::Align::Min), |ui| {
+                ui.add_sized([116.0, 24.0], egui::RadioButton::new(selected, text))
+            })
+            .inner
+        })
+        .inner
+}
+
 #[derive(Clone, Copy)]
 pub enum Icon {
     Library,
@@ -203,6 +265,10 @@ pub enum Icon {
     Moon,
     Alert,
     Plus,
+    Minimize,
+    Maximize,
+    Restore,
+    Close,
 }
 
 pub fn icon(ui: &mut egui::Ui, kind: Icon, size: f32, color: Color32) -> Response {
@@ -244,9 +310,34 @@ pub fn icon_image(kind: Icon, size: f32, color: Color32) -> egui::Image<'static>
         Icon::Moon => asset!("moon"),
         Icon::Alert => asset!("circle-alert"),
         Icon::Plus => asset!("plus"),
+        Icon::Minimize => asset!("minus"),
+        Icon::Maximize => asset!("square"),
+        Icon::Restore => asset!("copy"),
+        Icon::Close => asset!("x"),
     };
     egui::Image::from_bytes(uri, bytes)
         .fit_to_exact_size(egui::vec2(size, size))
         .tint(color)
         .show_loading_spinner(false)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn radio_choices_align_vertically() {
+        let ctx = egui::Context::default();
+        let mut rectangles = Vec::new();
+        let mut output = ctx.run_ui(egui::RawInput::default(), |ui| {
+            apply(&ctx, false);
+            ui.horizontal_wrapped(|ui| {
+                rectangles.push(choice(ui, true, "Light").rect);
+                rectangles.push(choice(ui, false, "Dark").rect);
+            });
+        });
+        output.textures_delta.clear();
+        assert_eq!(rectangles[0].top(), rectangles[1].top());
+        assert_eq!(rectangles[0].height(), rectangles[1].height());
+    }
 }
