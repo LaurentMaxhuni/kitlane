@@ -70,7 +70,7 @@ pub trait Vault: Send + Sync {
     fn set(&self, account: &str, token: &str) -> Result<(), Error>;
     fn delete(&self, account: &str) -> Result<(), Error>;
 }
-struct OsVault;
+pub struct OsVault;
 #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
 impl OsVault {
     fn entry(account: &str) -> Result<keyring::Entry, Error> {
