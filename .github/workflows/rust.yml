@@ -18,6 +18,8 @@ jobs:
       matrix:
         os: [windows-latest, macos-latest, ubuntu-latest]
     runs-on: ${{ matrix.os }}
+    env:
+      KITLANE_ACCOUNT_API: ${{ vars.KITLANE_ACCOUNT_API }}
     defaults:
       run:
         working-directory: app
@@ -32,14 +34,14 @@ jobs:
       - run: cargo +1.97.1 test --workspace --locked
       - run: cargo +1.97.1 clippy --workspace --all-targets --locked -- -D warnings
       - name: Windows installer compiler
-        if: runner.os == 'Windows'
+        if: runner.os == 'Windows' && vars.KITLANE_ACCOUNT_API != ''
         run: choco install innosetup --version=6.7.3 --yes --no-progress
       - name: Build Windows installer
-        if: runner.os == 'Windows'
+        if: runner.os == 'Windows' && vars.KITLANE_ACCOUNT_API != ''
         shell: pwsh
         run: ./installer/build.ps1
       - name: Save Windows installer
-        if: runner.os == 'Windows'
+        if: runner.os == 'Windows' && vars.KITLANE_ACCOUNT_API != ''
         uses: actions/upload-artifact@v4
         with:
           name: Kitlane-Windows-Setup
