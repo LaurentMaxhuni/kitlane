@@ -5,7 +5,7 @@
     "Sora": "https://github.com/google/fonts/tree/main/ofl/sora",
     "Inter": "https://github.com/google/fonts/tree/main/ofl/inter"
   },
-  "interfaceIcons": "Lucide / MIT",
+  "interfaceIcons": "Lucide / ISC",
   "files": [
     {
       "path": "brand/brand-cover.png",
@@ -333,6 +333,11 @@
       "sha256": "44ad0f822a89b28a3feecf7276686c818a92a4a9c77cc51404c58929e30f0f3a"
     },
     {
+      "path": "ui-icons/minus.svg",
+      "bytes": 309,
+      "sha256": "116a64e7f95fe2c31490f084d4abbf49dc15af8e7fab4a29ed5b84bb3c26c00b"
+    },
+    {
       "path": "ui-icons/monitor.svg",
       "bytes": 425,
       "sha256": "3ef31ab3ab45c174485e0c1dfc3bd3b54ae51cb74df8230a0e136d78ca580efd"
@@ -371,6 +376,11 @@
       "path": "ui-icons/shield-check.svg",
       "bytes": 499,
       "sha256": "0e9116845c6053cd3bfa09a3e4c232f5fb28c3abab75792287d2aed31c24ebe7"
+    },
+    {
+      "path": "ui-icons/square.svg",
+      "bytes": 339,
+      "sha256": "c6c07f247abd06d3164a6749e21812da9092908fe0033f8163149b4ee2e31347"
     },
     {
       "path": "ui-icons/sun.svg",
