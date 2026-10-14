@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#081b31">
+  <meta name="description" content="Meet Kitlane, a native desktop home for your software library. Discover installed apps, explore platform availability, and connect your computers on your terms.">
+  <meta property="og:title" content="Kitlane — Your tools. All together.">
+  <meta property="og:description" content="A little less searching. A little more together. Meet your new software library.">
+  <meta property="og:type" content="website">
+  <title>Kitlane — Your tools. All together.</title>
+  <link rel="icon" href="assets/app-icon-128.png">
+  <link rel="stylesheet" href="styles.css">
+  <script src="site.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header container">
+    <a class="brand" href="./" aria-label="Kitlane home"><img src="assets/kitlane-logo.svg" width="140" height="33" alt="Kitlane"></a>
+    <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="navigation">Menu <span aria-hidden="true">☰</span></button>
+    <nav class="navigation" id="navigation" aria-label="Main navigation">
+      <a href="#features">Features</a><a href="#how-it-works">How it works</a><a href="#faq">FAQ</a>
+      <a class="button button-small" href="download/">Get Kitlane <img src="assets/icons/download.svg" alt="" width="16" height="16"></a>
+    </nav>
+  </header>
+  <main id="main">
+    <section class="hero container">
+      <p class="intro"><span class="intro-dot" aria-hidden="true"></span> A calmer home for your software</p>
+      <h1>Your tools.<br>All together.</h1>
+      <p class="hero-description">Different computers. A familiar toolkit. See what’s installed,<br class="desktop-break"> discover where it works, and keep your software in view.</p>
+      <div class="hero-actions"><a class="button" href="download/">Get Kitlane <img src="assets/icons/download.svg" alt="" width="18" height="18"></a><a class="text-link" href="#product">Take a look <img src="assets/icons/arrow-right.svg" alt="" width="18" height="18"></a></div>
+      <p class="hero-note">Native desktop app. Windows preview in preparation.</p>
+    </section>
+    <section class="product-section container" id="product" aria-label="Explore the Kitlane app">
+      <div class="product-stage">
+        <div class="product-topline"><span class="stage-label"><img src="assets/kitlane-mark.svg" alt="" width="24" height="24"> A little clarity goes a long way.</span><span class="preview-label">Real app. Example library.</span></div>
+        <figure class="app-preview">
+          <img id="product-image" src="assets/library.png" width="1440" height="900" alt="Kitlane Library showing installed apps, publishers, versions, and availability for Windows, macOS, and Linux" fetchpriority="high">
+          <figcaption class="visually-hidden" id="product-caption">Library preview with illustrative inventory.</figcaption>
+        </figure>
+        <div class="product-controls"><div class="preview-switch" role="group" aria-label="Choose an app preview"><button type="button" data-preview="library" aria-pressed="true"><img src="assets/icons/package.svg" alt="" width="16" height="16"> Your library</button><button type="button" data-preview="devices" aria-pressed="false"><img src="assets/icons/laptop.svg" alt="" width="16" height="16"> Your devices</button></div><span id="preview-description" aria-live="polite">Everything installed, in one view.</span></div>
+      </div>
+    </section>
+    <section class="tools-strip container" aria-label="Example apps in your toolkit">
+      <p>For the tools that make<br>your computer yours.</p>
+      <div class="tool"><img src="assets/programs/visual-studio-code.png" alt="" width="28" height="28"><span>VS Code</span></div>
+      <div class="tool"><img src="assets/programs/vlc.svg" alt="" width="28" height="28"><span>VLC</span></div>
+      <div class="tool"><img src="assets/programs/blender.svg" alt="" width="34" height="28"><span>Blender</span></div>
+      <div class="tool"><img src="assets/programs/notepad-plus-plus.svg" alt="" width="32" height="28"><span>Notepad++</span></div>
+    </section>
+    <section class="features section container" id="features">
+      <div class="section-heading"><h2>Less digging.<br>More knowing.</h2><p>A new computer shouldn’t mean losing track of your favorite tools. Kitlane gives your software a place to belong.</p></div>
+      <div class="feature-layout">
+        <article class="library-feature">
+          <div class="feature-copy"><span class="icon-box"><img src="assets/icons/package.svg" alt="" width="23" height="23"></span><h3>Your library, finally in focus.</h3><p>Scan supported installed apps into a searchable library. Names, publishers, and versions, without the scavenger hunt.</p></div>
+          <div class="mini-library" aria-label="Illustrative library search">
+            <div class="mini-search"><img src="assets/icons/package.svg" alt="" width="16" height="16"><span>Your everyday toolkit</span><span class="mini-count">3 apps</span></div>
+            <div class="mini-app"><img src="assets/programs/visual-studio-code.png" alt="" width="30" height="30"><div><strong>Visual Studio Code</strong><span>Microsoft Corporation</span></div><span class="installed"><img src="assets/icons/check.svg" alt="" width="13" height="13"> Installed</span></div>
+            <div class="mini-app"><img src="assets/programs/vlc.svg" alt="" width="30" height="30"><div><strong>VLC media player</strong><span>VideoLAN</span></div><span class="installed"><img src="assets/icons/check.svg" alt="" width="13" height="13"> Installed</span></div>
+            <div class="mini-app"><img src="assets/programs/notepad-plus-plus.svg" alt="" width="30" height="30"><div><strong>Notepad++</strong><span>Notepad++ Team</span></div><span class="installed"><img src="assets/icons/check.svg" alt="" width="13" height="13"> Installed</span></div>
+          </div>
+        </article>
+        <article class="availability-feature"><span class="icon-box"><img src="assets/icons/monitor.svg" alt="" width="23" height="23"></span><h3>A clearer picture<br>of where it works.</h3><p>Explore platform availability for catalog matches. When an app isn’t known, Kitlane says so.</p><div class="platform-example"><span>Example catalog match</span><strong>Visual Studio Code</strong><div><span><i class="check-dot" aria-hidden="true">✓</i> Windows</span><span><i class="check-dot" aria-hidden="true">✓</i> macOS</span><span><i class="check-dot" aria-hidden="true">✓</i> Linux</span></div></div></article>
+      </div>
+    </section>
+    <section class="privacy-section section">
+      <div class="container privacy-layout"><div class="privacy-copy"><span class="privacy-icon"><img src="assets/icons/shield-check.svg" alt="" width="26" height="26"></span><h2>Your computers.<br>Your call.</h2><p>Connect your devices without handing over control. Your inventory stays on your computer until you choose to share it.</p><ul class="check-list"><li>Pair devices with a short-lived code.</li><li>Choose whether to share your library.</li><li>Review compatibility before taking action.</li></ul><a class="light-link" href="#how-it-works">See how it works <img src="assets/icons/arrow-right.svg" alt="" width="18" height="18"></a></div><div class="connection-illustration" aria-label="Illustration of two computers connected by Kitlane"><div class="device-node primary-device"><span class="device-icon"><img src="assets/icons/monitor.svg" alt="" width="40" height="40"></span><strong>Your desktop</strong><span>Library stays local</span></div><div class="connection-route"><span class="route-line"></span><img src="assets/app-icon-128.png" alt="Kitlane" width="66" height="66"><span class="route-line"></span></div><div class="device-node secondary-device"><span class="device-icon"><img src="assets/icons/laptop.svg" alt="" width="40" height="40"></span><strong>Your laptop</strong><span>Share when you choose</span></div><span class="consent-note"><img src="assets/icons/check.svg" alt="" width="16" height="16"> Connected on your terms</span></div></div>
+    </section>
+    <section class="how-section section container" id="how-it-works"><div class="section-heading"><h2>Make yourself<br>at home.</h2><p>A few small steps to a better view of your software. No automatic installs. No surprise changes.</p></div><div class="steps"><article><span class="step-number">01</span><h3>Settle in.</h3><p>Sign in with Google, choose your appearance, and give your computer a name.</p></article><article><span class="step-number">02</span><h3>Find your tools.</h3><p>Scan your installed apps. Search your library and explore known platform availability.</p></article><article><span class="step-number">03</span><h3>Bring devices together.</h3><p>Pair another computer. Choose what to share, then sync your library when you’re ready.</p></article></div></section>
+    <section class="faq-section section container" id="faq"><div><h2>A few things<br>you might wonder.</h2><p>Still curious? <a href="https://github.com/LaurentMaxhuni/kitlane">Explore the project</a>.</p></div><div class="faq-list"><details><summary>What does Kitlane do today?<img src="assets/icons/chevron-down.svg" alt="" width="20" height="20"></summary><p>Kitlane organizes supported installed apps, lets you search by name or publisher, shows availability for a small bundled catalog, and connects account-owned devices for explicit library sharing. It’s in active development.</p></details><details><summary>Does it install or update my apps?<img src="assets/icons/chevron-down.svg" alt="" width="20" height="20"></summary><p>No. The current app scans and organizes your library. Installation, updates, and AI suggestions are not enabled. Compatibility proposals are for review only.</p></details><details><summary>Which computers are supported?<img src="assets/icons/chevron-down.svg" alt="" width="20" height="20"></summary><p>The first packaged preview targets Windows x64. macOS and Linux installers are planned. Their inventory adapters have development checks; native runtime validation is still pending. See the <a href="download/">download page</a> for current release status.</p></details><details><summary>Does every installed app appear?<img src="assets/icons/chevron-down.svg" alt="" width="20" height="20"></summary><p>Coverage depends on the platform: Windows uninstall-registry entries, macOS application bundles, and Linux Flatpak apps. Portable apps, Windows Store/MSIX apps, other users’ software, and Linux native packages are outside the current scanners.</p></details><details><summary>What happens to my data?<img src="assets/icons/chevron-down.svg" alt="" width="20" height="20"></summary><p>Your inventory and preferences are saved locally. Pairing alone doesn’t upload your library. Sharing needs your consent and an explicit sync. Google sign-in is required; account credentials use your operating system’s credential store.</p></details></div></section>
+    <section class="closing-section container"><div class="closing-copy"><img src="assets/kitlane-mark.svg" alt="" width="52" height="52"><h2>A little more together.<br>A lot more you.</h2><p>Give your everyday tools a home.</p><a class="button" href="download/">Get Kitlane <img src="assets/icons/download.svg" alt="" width="18" height="18"></a></div><div class="closing-tiles" aria-hidden="true"><span><img src="assets/programs/visual-studio-code.png" alt="" width="68" height="68"></span><span><img src="assets/programs/vlc.svg" alt="" width="62" height="62"></span><span><img src="assets/programs/blender.svg" alt="" width="76" height="68"></span><span><img src="assets/app-icon-128.png" alt="" width="72" height="72"></span></div></section>
+  </main>
+  <footer class="site-footer container"><div><a class="brand" href="./" aria-label="Kitlane home"><img src="assets/kitlane-logo.svg" alt="Kitlane" width="120" height="28"></a><p>Your tools. All together.</p></div><nav aria-label="Footer navigation"><a href="download/">Downloads</a><a href="https://github.com/LaurentMaxhuni/kitlane">GitHub</a><a href="https://github.com/LaurentMaxhuni/kitlane/blob/main/app/README.md">Documentation</a></nav><div class="footer-bottom"><span>© <span data-year>2026</span> Kitlane</span><span>Made for your everyday toolkit.</span></div></footer>
+</body>
+</html>
