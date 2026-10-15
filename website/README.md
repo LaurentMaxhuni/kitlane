@@ -28,6 +28,8 @@ The resolver checks the 100 most recent GitHub releases and chooses the highest 
 
 Public GitHub lookup needs no credential. For higher traffic, configure optional Vercel server-only `GITHUB_RELEASES_TOKEN` with read-only Contents access to this repository to avoid GitHub's unauthenticated API limit. Never expose it in page scripts. No credential is required by the local build or fixture tests.
 
+Verified on 2026-10-15: publication of v0.2.0 automatically switched the live page's version labels and all seven release routes from v0.1.3 to v0.2.0. The five downloaded packages matched their checksums, and the published Windows update metadata verified against the pinned signing key. This is a validation record, not a pinned website version.
+
 For each release, update `app/Cargo.toml` and release notes, then push a matching `v<version>` tag. `.github/workflows/release.yml` tests and packages all five targets, signs Windows update metadata using `KITLANE_UPDATE_SIGNING_KEY`, and publishes one prerelease after every target succeeds. A missing CI signing secret blocks publication. `workflow_dispatch` on a branch builds artifacts without publishing. Once publication is complete, the website discovers that version within a minute without edits or redeployment. Platform requirements and feature descriptions still need review when support changes. Never copy development executables into the website.
 
 The packages use the verified development account API and shared development Google OAuth. Interactive macOS/Linux and physical two-computer checks remain pending. Windows downloads have no publisher certificate; Mac downloads have ad-hoc signatures and no Apple notarization. The page states these limits.
