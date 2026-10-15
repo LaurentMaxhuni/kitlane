@@ -16,13 +16,13 @@ npm run check
 npm run build
 ```
 
-Upload the contents of `website/dist/` to a static host. Keep `download/index.html` and all assets together; directory index hosting supports `/download/`. Paths also work when deployed under a subdirectory. No external fonts, third-party scripts, trackers, API requests, or install step.
+Upload the contents of `website/dist/` to a static host. Keep `download/index.html` and all assets together; directory index hosting supports `/download/`. Paths also work when deployed under a subdirectory. No external fonts, third-party scripts, trackers, API requests, or install step. Vercel uses project root `website`, `npm run build`, and output `dist`; `vercel.json` records the static build settings. Native downloads are hosted on GitHub Releases, outside the website bundle.
 
 ## Release status
 
-The download page deliberately links to GitHub releases instead of distributing the existing local installer. The app documentation requires account sign-in and packaged-build verification before public distribution. macOS/Linux installer packaging and native runtime verification remain pending.
+The download page links to the versioned `v0.1.1` GitHub preview release: Windows x64 setup, macOS Apple Silicon/Intel disk images, Linux x64/ARM64 archives, and SHA-256 checksums. These builds use the verified development account API and shared development Google OAuth. Windows install/uninstall and real sign-in were verified during development. Interactive macOS/Linux and physical two-computer checks remain pending. Windows downloads are unsigned; Mac downloads have ad-hoc signatures and no Apple notarization. The page states these limits.
 
-When a verified Windows release is published, update `download/index.html`: replace the release-status link with the published HTTPS installer URL, change its label to “Download for Windows”, update version/platform metadata and status, and replace the preparation message with verified release details. Publish only assets from the verified release; never copy development executables into the website. Keep macOS/Linux unavailable until their releases exist.
+For each release, update `app/Cargo.toml`, release notes, and the website links/version/platform requirements. Push a matching `v<version>` tag. `.github/workflows/release.yml` builds and tests on native runners, packages all five targets, and publishes one prerelease only after every target succeeds. `workflow_dispatch` builds artifacts without publishing when run on a branch. Verify every website download URL and checksum before deploying the site. Never copy stale development executables into the website.
 
 ## Assets
 

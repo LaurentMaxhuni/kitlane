@@ -14,7 +14,7 @@ cargo run
 cargo build --release --bin kitlane
 ```
 
-The API address is compiled into the desktop and must be an exact HTTPS origin. Missing configuration keeps the login gate closed with a setup message. See [account service setup](../services/account-api/README.md) and [native client](account-client/README.md). Development project/schema/Auth and the service artifact exist; live Google login awaits development deployment and claim verification. Do not distribute a gate-enabled installer until its API is configured and tested.
+The API address is compiled into the desktop and must be an exact HTTPS origin. Missing configuration keeps the login gate closed with a setup message. See [account service setup](../services/account-api/README.md) and [native client](account-client/README.md). The development service and real Google sign-in have been verified; see [deployment evidence and remaining checks](docs/development-deployment.md). Public previews use that development API and shared development OAuth. Production requires separate Google OAuth configuration.
 
 Verify:
 
@@ -46,7 +46,13 @@ Build the x64 installer on Windows with Inno Setup 6.7+:
 ./installer/build.ps1 -Compiler ./target/inno/ISCC.exe -AccountApi 'https://YOUR-VERIFIED-ACCOUNT-API'
 ```
 
-The build script requires a verified HTTPS API origin (argument or `KITLANE_ACCOUNT_API`) and always rebuilds the executable with that address before packaging. It generates branded artwork from shared design tokens and emits `../dist/Kitlane-<version>-Setup-x64.exe`. Windows CI packages/uploads after Rust checks only when repository variable `KITLANE_ACCOUNT_API` is configured. Local builds are unsigned; release signing needs a separately configured certificate. macOS and Linux installer packaging remains future work.
+The build script requires a verified HTTPS API origin (argument or `KITLANE_ACCOUNT_API`) and always rebuilds the executable with that address before packaging. It generates branded artwork from shared design tokens and emits `../dist/Kitlane-<version>-Setup-x64.exe`. The ordinary Rust checks workflow packages Windows only when repository variable `KITLANE_ACCOUNT_API` is configured. Windows installers are unsigned; release signing needs a separately configured certificate.
+
+### Cross-platform previews
+
+`.github/workflows/release.yml` tests and packages Windows x64, macOS Apple Silicon/Intel, and Linux x64/ARM64 on native runners. Matching `v<version>` tags publish a GitHub prerelease with all five packages and `SHA256SUMS.txt` only after every target passes. Manual branch runs save build artifacts without publishing. The preview workflow explicitly configures the verified development API.
+
+On macOS or Linux, set `KITLANE_ACCOUNT_API` and run `node app/installer/package.mjs` from the repository root (Node 22+). It rebuilds the configured executable. macOS packaging uses system `codesign`/`hdiutil` to produce an ad-hoc-signed `.app` in a verified `.dmg`, with icon, version metadata, and licenses. No Apple Developer certificate or notarization is configured; macOS may block the download. Linux packaging creates a `.tar.gz` with executable, icon, runtime requirements, and licenses. Linux x64 builds target Ubuntu 22.04/glibc 2.35+; ARM64 targets Ubuntu 24.04/glibc 2.39+. Both require a graphical session, OpenGL, D-Bus, and an unlocked Secret Service keyring. Interactive macOS/Linux launch, sign-in, and scanning checks remain pending.
 
 After Google login, first launch shows a four-step setup: welcome, light or dark appearance, device name and scan timing, then review with optional device pairing. Each Continue/Back saves choices and progress atomically. Setup resumes after interruption and closes only after the final database write succeeds. Scanning starts only after setup completes and only if selected; sharing needs consent and Sync now. Existing appearance-only settings remain readable and show setup once. Settings provides scan-on-launch control and Run setup again.
 

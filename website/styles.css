@@ -137,6 +137,13 @@ h3{font-size:24px;line-height:1.3;letter-spacing:-.045em}
 .site-footer>nav{display:flex;align-items:flex-start;justify-content:flex-end;gap:28px;font-size:12px;padding-top:10px}
 .footer-bottom{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;border-top:1px solid var(--line);padding-top:24px;font-size:10px;color:#667a8d}
 /* Downloads share the landing page's typography and navigation. */
+.platform-downloads{display:flex;flex-direction:column;align-items:flex-start;gap:14px;margin-top:22px}
+.platform-downloads .text-link{font-size:12px;line-height:1.5}
+.upcoming-platform .platform-caveat{font-size:11px;line-height:1.7;margin-top:18px}
+.platform-caveat a,.preview-notice a{text-decoration:underline;text-underline-offset:3px}
+.preview-notice{padding-top:24px;font-size:12px;line-height:1.8;color:var(--muted)}
+.preview-notice p+p{margin-top:8px}
+@media(max-width:720px){.download-page .upcoming-platforms{grid-template-columns:1fr}}
 .download-hero{padding-block:52px 47px}
 .back-link{display:inline-flex;gap:10px;align-items:center;font-size:12px;color:#5a7183;margin-bottom:36px}
 .back-link:hover{color:var(--ink)}
