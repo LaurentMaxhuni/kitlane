@@ -2,6 +2,8 @@
 
 Reviewed 2026-10-11. Bundled metadata only; no runtime network, installer URLs, package commands, provider IDs or automatic installation. Canonical IDs are internal Kitlane IDs.
 
+Expanded 2026-10-15 to 15 products and 19 exact Windows name/publisher pairs. The twelve additions below add Windows associations and official OS availability facts; macOS bundle matching still covers VLC only. Linux inventory associations remain unknown.
+
 A match means **catalog association from source metadata**. Registry display names, publishers and bundle identifiers can be forged. Matching does not verify binary publisher identity, package origin, executable signatures or safe-install authorization. Availability means an official native product exists for the OS family. It does not establish compatibility with a device's architecture, OS version, distribution, license or deployment environment.
 
 `WindowsRegistry` observations require exact, case-sensitive display-name and publisher pairs. `MacosBundle` observations require an exact reviewed bundle identifier; display names can vary and do not establish identity. Version, scope, registry key and package origin do not establish identity. Manual entries, Flatpak metadata, missing required identifiers and unreviewed metadata remain unknown. No punctuation stripping, case folding, substring matching or generic suffix removal. Identity unknown never means Windows-only.
@@ -11,6 +13,18 @@ A match means **catalog association from source metadata**. Registry display nam
 | Visual Studio Code | `Microsoft Visual Studio Code`, `Microsoft Visual Studio Code (User)`; publisher `Microsoft Corporation` | Windows, macOS, Linux available |
 | VLC media player | `VLC media player`; publisher `VideoLAN` | Windows, macOS, Linux available |
 | Notepad++ | `Notepad++ (64-bit x64)`, `Notepad++ (ARM 64-bit)`, `Notepad++ (32-bit x86)`; publisher `Notepad++ Team` | Windows available; macOS/Linux unavailable |
+| Brave | `Brave`; publisher `Brave Software Inc` | Windows, macOS, Linux available |
+| Docker Desktop | `Docker Desktop`; publisher `Docker Inc.` | Windows, macOS, Linux available |
+| Firefox | `Mozilla Firefox (x64 en-US)`, `Mozilla Firefox (x86 en-US)`; publisher `Mozilla` | Windows, macOS, Linux available |
+| Git | `Git`; publisher `The Git Development Community` | Windows, macOS, Linux available |
+| OBS Studio | `OBS Studio`; publisher `OBS Project` | Windows, macOS, Linux available |
+| Steam | `Steam`; publisher `Valve Corporation` | Windows, macOS, Linux available |
+| Google Chrome | `Google Chrome`; publisher `Google LLC` | Windows, macOS, Linux available |
+| Microsoft Edge | `Microsoft Edge`; publisher `Microsoft Corporation` | Windows, macOS, Linux available |
+| Discord | `Discord`; publisher `Discord Inc.` | Windows, macOS, Linux available |
+| Spotify | `Spotify`; publisher `Spotify AB` | Windows, macOS, Linux available |
+| Obsidian | `Obsidian`; publisher `Obsidian` | Windows, macOS, Linux available |
+| GitHub Desktop | `GitHub Desktop`; publisher `GitHub, Inc.` | Windows, macOS available; official Linux product unavailable |
 
 ## Identity evidence
 
@@ -28,6 +42,16 @@ Notepad++'s [vendor registry-writing function](https://github.com/notepad-plus-p
 
 ## Platform evidence
 
+### Expansion reviewed 2026-10-15
+
+The new Windows rules use the exact names and publishers in Microsoft's WinGet catalog, corroborated against local uninstall metadata for Brave, Docker Desktop, Git, Firefox, OBS Studio and Steam. Versioned manifest pages are linked in each product's evidence; these are metadata associations, not signature or package-origin verification. WinGet's display labels do not authorize suffix stripping or other inferred aliases.
+
+Git's [installer source](https://github.com/git-for-windows/build-extra/blob/main/installer/install.iss) explicitly sets its uninstall name and publisher. GitHub Desktop's [application metadata](https://github.com/desktop/desktop/blob/development/app/package.json) declares its product and company names; the separate MSI deployment tool is deliberately excluded. Firefox's [registry-writing source](https://github.com/mozilla-firefox/firefox/blob/main/browser/installer/windows/nsis/shared.nsh) and [official branding](https://github.com/mozilla-firefox/firefox/blob/main/browser/branding/official/branding.nsi) establish the literal architecture/locale form. Only the two listed English variants are reviewed; other locales, ARM, ESR and prerelease names remain unknown. No version is encoded in these rules.
+
+Official availability sources: [Brave](https://brave.com/download/), [Docker Desktop](https://docs.docker.com/desktop/), [Firefox requirements](https://www.mozilla.org/en-US/firefox/157.0.1/system-requirements/), [Git](https://git-scm.com/install/), [OBS](https://obsproject.com/download), [Steam](https://store.steampowered.com/about/), [Chrome requirements](https://support.google.com/chrome/answer/95346), [Edge](https://www.microsoft.com/en-us/edge/download), [Discord](https://discord.com/download), [Spotify](https://www.spotify.com/us/download/other/) ([Linux caveats](https://www.spotify.com/us/download/linux/)), [Obsidian](https://obsidian.md/download), and [GitHub Desktop requirements](https://docs.github.com/en/desktop/overview/supported-operating-systems-for-github-desktop). These establish OS-family availability only. Docker virtualization/licensing, OBS graphics requirements, Linux distribution support and release-specific constraints are not evaluated. Steam client availability says nothing about individual games. GitHub's [README](https://github.com/desktop/desktop/blob/development/README.md) explicitly excludes official Linux support and identifies a separate community fork; that fork is not matched to the official product.
+
+### Original entries reviewed 2026-10-11
+
 Microsoft's [requirements](https://code.visualstudio.com/docs/supporting/requirements) explicitly document Windows client, macOS and Linux support. Supported OS releases, 64-bit Windows and Linux native libraries constrain installation; this catalog does not evaluate those constraints on a device.
 
 VideoLAN's official [Windows page](https://www.videolan.org/vlc/download-windows.html) lists desktop architecture variants; [macOS page](https://www.videolan.org/vlc/download-macosx.html) documents Intel/Apple silicon and a minimum OS; [Ubuntu page](https://www.videolan.org/vlc/download-ubuntu.html) establishes Linux availability. Ubuntu availability does not imply all Linux distributions, architectures or third-party packaging are supported. Browser fetches returned HTTP 418; direct HTTPS reads of the same vendor pages succeeded during review.
@@ -41,3 +65,7 @@ Evidence URLs point to documentation or source pages, never executable artifacts
 Schema version, catalog byte/product/rule/evidence limits, duplicate product IDs, duplicate name/publisher pairs, duplicate native identifiers, exact three-platform ordering, bounded text, HTTPS page URLs and calendar-valid review dates are checked before use. Schema v1 catalogs without the optional `native_match_rules` field remain accepted; their Windows associations retain identical semantics. Native rules currently permit only reviewed macOS bundle IDs. Available/unavailable claims and every identity rule require evidence; unknown support can remain without evidence. Unexpected fields are rejected. Source truth remains a human review responsibility: structural checks cannot prove a vendor claim.
 
 Unit tests cover reviewed pairs and bundle IDs, publisher mismatch/missing publisher, missing/wrong native IDs, cross-source ID collisions, unreviewed editions/forks/aliases, unsupported inventory sources, malformed observations, ambiguous rules, backward catalogs, duplicate products/platforms, unsupported schema, missing evidence, URL schemes/credentials, invalid dates, unknown fields and byte limits.
+
+Expansion regression fixtures cover all twelve added products, mismatched publishers, channel suffixes, Firefox maintenance/ESR, Brave Nightly, Discord Canary, Edge WebView2 and GitHub's deployment tool. Official GitHub Desktop Linux unavailability is asserted separately.
+
+Windows validation, 2026-10-15: 136 workspace tests passed, two opt-in tests ignored; strict workspace Clippy and formatting passed. The same read-only native inventory diagnostic reported 144 applications and three coverage warnings before and after expansion; catalog matches increased from one to eleven. Run native diagnostics outside the restricted sandbox, which hides parts of the user registry; account/sync tests also need loopback sockets unavailable inside that sandbox.

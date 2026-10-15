@@ -397,6 +397,62 @@ mod tests {
     }
 
     #[test]
+    fn common_windows_apps_match_without_accepting_repackages_or_other_channels() {
+        let catalog = Catalog::bundled().unwrap();
+        // Representative uninstall metadata, including Firefox's literal architecture/locale.
+        for (name, publisher, id) in [
+            ("Brave", "Brave Software Inc", "brave"),
+            ("Docker Desktop", "Docker Inc.", "docker-desktop"),
+            ("Mozilla Firefox (x64 en-US)", "Mozilla", "firefox"),
+            ("Git", "The Git Development Community", "git"),
+            ("OBS Studio", "OBS Project", "obs-studio"),
+            ("Steam", "Valve Corporation", "steam"),
+            ("Google Chrome", "Google LLC", "google-chrome"),
+            ("Microsoft Edge", "Microsoft Corporation", "microsoft-edge"),
+            ("Discord", "Discord Inc.", "discord"),
+            ("Spotify", "Spotify AB", "spotify"),
+            ("Obsidian", "Obsidian", "obsidian"),
+            ("GitHub Desktop", "GitHub, Inc.", "github-desktop"),
+        ] {
+            let MatchOutcome::Matched(product) = catalog.match_app(&app(name, Some(publisher)))
+            else {
+                panic!("expected reviewed match for {name}");
+            };
+            assert_eq!(product.id, id);
+            assert_eq!(
+                catalog.match_app(&app(name, Some("Unreviewed publisher"))),
+                MatchOutcome::Unknown(UnknownReason::UnrecognizedMetadata)
+            );
+            assert_eq!(
+                catalog.match_app(&app(&format!("{name} Beta"), Some(publisher))),
+                MatchOutcome::Unknown(UnknownReason::UnrecognizedMetadata)
+            );
+        }
+        let MatchOutcome::Matched(desktop) =
+            catalog.match_app(&app("GitHub Desktop", Some("GitHub, Inc.")))
+        else {
+            panic!("expected GitHub Desktop match");
+        };
+        assert_eq!(
+            desktop.support(Platform::Linux).availability,
+            Availability::Unavailable
+        );
+        for (name, publisher) in [
+            ("Mozilla Maintenance Service", "Mozilla"),
+            ("Mozilla Firefox ESR (x64 en-US)", "Mozilla"),
+            ("Brave Nightly", "Brave Software Inc"),
+            ("Discord Canary", "Discord Inc."),
+            ("Microsoft Edge WebView2 Runtime", "Microsoft Corporation"),
+            ("GitHub Desktop Deployment Tool", "GitHub, Inc."),
+        ] {
+            assert_eq!(
+                catalog.match_app(&app(name, Some(publisher))),
+                MatchOutcome::Unknown(UnknownReason::UnrecognizedMetadata)
+            );
+        }
+    }
+
+    #[test]
     fn missing_mismatched_fork_and_edition_metadata_remain_unknown() {
         let catalog = Catalog::bundled().unwrap();
         assert_eq!(

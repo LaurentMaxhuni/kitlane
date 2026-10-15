@@ -234,6 +234,699 @@
       ],
       "id": "notepad-plus-plus",
       "publisher": "Notepad++ Team"
+    },
+    {
+      "match_rules": [
+        {
+          "name": "Brave",
+          "publisher": "Brave Software Inc",
+          "evidence": [
+            {
+              "summary": "Microsoft WinGet catalog records this product name and publisher.",
+              "reviewed_on": "2026-10-15",
+              "url": "https://github.com/microsoft/winget-pkgs/blob/master/manifests/b/Brave/Brave/155.1.97.56/Brave.Brave.locale.en-US.yaml"
+            }
+          ]
+        }
+      ],
+      "name": "Brave",
+      "platforms": [
+        {
+          "availability": "available",
+          "platform": "windows",
+          "evidence": [
+            {
+              "summary": "Vendor lists Windows, macOS and Linux desktop builds.",
+              "reviewed_on": "2026-10-15",
+              "url": "https://brave.com/download/"
+            }
+          ],
+          "compatibility_note": "Supported OS releases and CPU architectures vary by release. Target compatibility is not checked."
+        },
+        {
+          "availability": "available",
+          "platform": "macos",
+          "evidence": [
+            {
+              "summary": "Vendor lists Windows, macOS and Linux desktop builds.",
+              "reviewed_on": "2026-10-15",
+              "url": "https://brave.com/download/"
+            }
+          ],
+          "compatibility_note": "Supported OS releases and CPU architectures vary by release. Target compatibility is not checked."
+        },
+        {
+          "availability": "available",
+          "platform": "linux",
+          "evidence": [
+            {
+              "summary": "Vendor lists Windows, macOS and Linux desktop builds.",
+              "reviewed_on": "2026-10-15",
+              "url": "https://brave.com/download/"
+            }
+          ],
+          "compatibility_note": "Supported OS releases and CPU architectures vary by release. Target compatibility is not checked."
+        }
+      ],
+      "id": "brave",
+      "publisher": "Brave Software Inc"
+    },
+    {
+      "match_rules": [
+        {
+          "name": "Docker Desktop",
+          "publisher": "Docker Inc.",
+          "evidence": [
+            {
+              "summary": "Microsoft WinGet catalog records this product name and publisher.",
+              "reviewed_on": "2026-10-15",
+              "url": "https://github.com/microsoft/winget-pkgs/blob/master/manifests/d/Docker/DockerDesktop/4.95.0/Docker.DockerDesktop.locale.en-US.yaml"
+            }
+          ]
+        }
+      ],
+      "name": "Docker Desktop",
+      "platforms": [
+        {
+          "availability": "available",
+          "platform": "windows",
+          "evidence": [
+            {
+              "summary": "Docker documents Desktop for Windows, macOS and Linux.",
+              "reviewed_on": "2026-10-15",
+              "url": "https://docs.docker.com/desktop/"
+            }
+          ],
+          "compatibility_note": "OS, virtualization, hardware and licensing requirements apply. Docker Engine alone is a separate product. Target compatibility is not checked."
+        },
+        {
+          "availability": "available",
+          "platform": "macos",
+          "evidence": [
+            {
+              "summary": "Docker documents Desktop for Windows, macOS and Linux.",
+              "reviewed_on": "2026-10-15",
+              "url": "https://docs.docker.com/desktop/"
+            }
+          ],
+          "compatibility_note": "OS, virtualization, hardware and licensing requirements apply. Docker Engine alone is a separate product. Target compatibility is not checked."
+        },
+        {
+          "availability": "available",
+          "platform": "linux",
+          "evidence": [
+            {
+              "summary": "Docker documents Desktop for Windows, macOS and Linux.",
+              "reviewed_on": "2026-10-15",
+              "url": "https://docs.docker.com/desktop/"
+            }
+          ],
+          "compatibility_note": "OS, virtualization, hardware and licensing requirements apply. Docker Engine alone is a separate product. Target compatibility is not checked."
+        }
+      ],
+      "id": "docker-desktop",
+      "publisher": "Docker Inc."
+    },
+    {
+      "match_rules": [
+        {
+          "name": "Mozilla Firefox (x64 en-US)",
+          "publisher": "Mozilla",
+          "evidence": [
+            {
+              "summary": "Mozilla writes its exact display name with architecture and locale, and Mozilla as publisher.",
+              "reviewed_on": "2026-10-15",
+              "url": "https://github.com/mozilla-firefox/firefox/blob/main/browser/installer/windows/nsis/shared.nsh"
+            },
+            {
+              "summary": "Official branding defines the internal product name as Mozilla Firefox.",
+              "reviewed_on": "2026-10-15",
+              "url": "https://github.com/mozilla-firefox/firefox/blob/main/browser/branding/official/branding.nsi"
+            }
+          ]
+        },
+        {
+          "name": "Mozilla Firefox (x86 en-US)",
+          "publisher": "Mozilla",
+          "evidence": [
+            {
+              "summary": "Mozilla writes its exact display name with architecture and locale, and Mozilla as publisher.",
+              "reviewed_on": "2026-10-15",
+              "url": "https://github.com/mozilla-firefox/firefox/blob/main/browser/installer/windows/nsis/shared.nsh"
+            },
+            {
+              "summary": "Official branding defines the internal product name as Mozilla Firefox.",
+              "reviewed_on": "2026-10-15",
+              "url": "https://github.com/mozilla-firefox/firefox/blob/main/browser/branding/official/branding.nsi"
+            }
+          ]
+        }
+      ],
+      "name": "Mozilla Firefox",
+      "platforms": [
+        {
+          "availability": "available",
+          "platform": "windows",
+          "evidence": [
+            {
+              "summary": "Mozilla documents Windows, macOS and GNU/Linux requirements.",
+              "reviewed_on": "2026-10-15",
+              "url": "https://www.mozilla.org/en-US/firefox/157.0.1/system-requirements/"
+            }
+          ],
+          "compatibility_note": "OS, CPU and native library requirements apply. ESR, Developer Edition and Nightly are separate channels. Target compatibility is not checked."
+        },
+        {
+          "availability": "available",
+          "platform": "macos",
+          "evidence": [
+            {
+              "summary": "Mozilla documents Windows, macOS and GNU/Linux requirements.",
+              "reviewed_on": "2026-10-15",
+              "url": "https://www.mozilla.org/en-US/firefox/157.0.1/system-requirements/"
+            }
+          ],
+          "compatibility_note": "OS, CPU and native library requirements apply. ESR, Developer Edition and Nightly are separate channels. Target compatibility is not checked."
+        },
+        {
+          "availability": "available",
+          "platform": "linux",
+          "evidence": [
+            {
+              "summary": "Mozilla documents Windows, macOS and GNU/Linux requirements.",
+              "reviewed_on": "2026-10-15",
+              "url": "https://www.mozilla.org/en-US/firefox/157.0.1/system-requirements/"
+            }
+          ],
+          "compatibility_note": "OS, CPU and native library requirements apply. ESR, Developer Edition and Nightly are separate channels. Target compatibility is not checked."
+        }
+      ],
+      "id": "firefox",
+      "publisher": "Mozilla"
+    },
+    {
+      "match_rules": [
+        {
+          "name": "Git",
+          "publisher": "The Git Development Community",
+          "evidence": [
+            {
+              "summary": "Vendor installer declares Git as uninstall display name and The Git Development Community as publisher.",
+              "reviewed_on": "2026-10-15",
+              "url": "https://github.com/git-for-windows/build-extra/blob/main/installer/install.iss"
+            }
+          ]
+        }
+      ],
+      "name": "Git",
+      "platforms": [
+        {
+          "availability": "available",
+          "platform": "windows",
+          "evidence": [
+            {
+              "summary": "Git links installation guidance for Windows, macOS and Linux.",
+              "reviewed_on": "2026-10-15",
+              "url": "https://git-scm.com/install/"
+            }
+          ],
+          "compatibility_note": "Windows metadata identifies Git for Windows. macOS and Linux use their documented distribution mechanisms; target compatibility is not checked."
+        },
+        {
+          "availability": "available",
+          "platform": "macos",
+          "evidence": [
+            {
+              "summary": "Git links installation guidance for Windows, macOS and Linux.",
+              "reviewed_on": "2026-10-15",
+              "url": "https://git-scm.com/install/"
+            }
+          ],
+          "compatibility_note": "Windows metadata identifies Git for Windows. macOS and Linux use their documented distribution mechanisms; target compatibility is not checked."
+        },
+        {
+          "availability": "available",
+          "platform": "linux",
+          "evidence": [
+            {
+              "summary": "Git links installation guidance for Windows, macOS and Linux.",
+              "reviewed_on": "2026-10-15",
+              "url": "https://git-scm.com/install/"
+            }
+          ],
+          "compatibility_note": "Windows metadata identifies Git for Windows. macOS and Linux use their documented distribution mechanisms; target compatibility is not checked."
+        }
+      ],
+      "id": "git",
+      "publisher": "The Git Development Community"
+    },
+    {
+      "match_rules": [
+        {
+          "name": "OBS Studio",
+          "publisher": "OBS Project",
+          "evidence": [
+            {
+              "summary": "Microsoft WinGet catalog records this product name and publisher.",
+              "reviewed_on": "2026-10-15",
+              "url": "https://github.com/microsoft/winget-pkgs/blob/master/manifests/o/OBSProject/OBSStudio/32.2.2/OBSProject.OBSStudio.locale.en-US.yaml"
+            }
+          ]
+        }
+      ],
+      "name": "OBS Studio",
+      "platforms": [
+        {
+          "availability": "available",
+          "platform": "windows",
+          "evidence": [
+            {
+              "summary": "OBS Project offers Windows, macOS and Linux desktop releases.",
+              "reviewed_on": "2026-10-15",
+              "url": "https://obsproject.com/download"
+            }
+          ],
+          "compatibility_note": "Supported OS releases, graphics hardware and drivers constrain recording and encoding. Target compatibility is not checked."
+        },
+        {
+          "availability": "available",
+          "platform": "macos",
+          "evidence": [
+            {
+              "summary": "OBS Project offers Windows, macOS and Linux desktop releases.",
+              "reviewed_on": "2026-10-15",
+              "url": "https://obsproject.com/download"
+            }
+          ],
+          "compatibility_note": "Supported OS releases, graphics hardware and drivers constrain recording and encoding. Target compatibility is not checked."
+        },
+        {
+          "availability": "available",
+          "platform": "linux",
+          "evidence": [
+            {
+              "summary": "OBS Project offers Windows, macOS and Linux desktop releases.",
+              "reviewed_on": "2026-10-15",
+              "url": "https://obsproject.com/download"
+            }
+          ],
+          "compatibility_note": "Supported OS releases, graphics hardware and drivers constrain recording and encoding. Target compatibility is not checked."
+        }
+      ],
+      "id": "obs-studio",
+      "publisher": "OBS Project"
+    },
+    {
+      "match_rules": [
+        {
+          "name": "Steam",
+          "publisher": "Valve Corporation",
+          "evidence": [
+            {
+              "summary": "Microsoft WinGet catalog records this product name and publisher.",
+              "reviewed_on": "2026-10-15",
+              "url": "https://github.com/microsoft/winget-pkgs/blob/master/manifests/v/Valve/Steam/2.10.91.91/Valve.Steam.locale.en-US.yaml"
+            }
+          ]
+        }
+      ],
+      "name": "Steam",
+      "platforms": [
+        {
+          "availability": "available",
+          "platform": "windows",
+          "evidence": [
+            {
+              "summary": "Valve offers Steam desktop clients for Windows, macOS and Linux.",
+              "reviewed_on": "2026-10-15",
+              "url": "https://store.steampowered.com/about/"
+            }
+          ],
+          "compatibility_note": "Client availability does not establish availability of individual games. OS, CPU, graphics and game requirements are not checked."
+        },
+        {
+          "availability": "available",
+          "platform": "macos",
+          "evidence": [
+            {
+              "summary": "Valve offers Steam desktop clients for Windows, macOS and Linux.",
+              "reviewed_on": "2026-10-15",
+              "url": "https://store.steampowered.com/about/"
+            }
+          ],
+          "compatibility_note": "Client availability does not establish availability of individual games. OS, CPU, graphics and game requirements are not checked."
+        },
+        {
+          "availability": "available",
+          "platform": "linux",
+          "evidence": [
+            {
+              "summary": "Valve offers Steam desktop clients for Windows, macOS and Linux.",
+              "reviewed_on": "2026-10-15",
+              "url": "https://store.steampowered.com/about/"
+            }
+          ],
+          "compatibility_note": "Client availability does not establish availability of individual games. OS, CPU, graphics and game requirements are not checked."
+        }
+      ],
+      "id": "steam",
+      "publisher": "Valve Corporation"
+    },
+    {
+      "match_rules": [
+        {
+          "name": "Google Chrome",
+          "publisher": "Google LLC",
+          "evidence": [
+            {
+              "summary": "Microsoft WinGet catalog records this product name and publisher.",
+              "reviewed_on": "2026-10-15",
+              "url": "https://github.com/microsoft/winget-pkgs/blob/master/manifests/g/Google/Chrome/155.0.8059.40/Google.Chrome.locale.en-US.yaml"
+            }
+          ]
+        }
+      ],
+      "name": "Google Chrome",
+      "platforms": [
+        {
+          "availability": "available",
+          "platform": "windows",
+          "evidence": [
+            {
+              "summary": "Google documents Chrome installation on Windows, macOS and Linux.",
+              "reviewed_on": "2026-10-15",
+              "url": "https://support.google.com/chrome/answer/95346"
+            }
+          ],
+          "compatibility_note": "Supported OS releases, CPU architectures and Linux distributions vary. Target compatibility is not checked."
+        },
+        {
+          "availability": "available",
+          "platform": "macos",
+          "evidence": [
+            {
+              "summary": "Google documents Chrome installation on Windows, macOS and Linux.",
+              "reviewed_on": "2026-10-15",
+              "url": "https://support.google.com/chrome/answer/95346"
+            }
+          ],
+          "compatibility_note": "Supported OS releases, CPU architectures and Linux distributions vary. Target compatibility is not checked."
+        },
+        {
+          "availability": "available",
+          "platform": "linux",
+          "evidence": [
+            {
+              "summary": "Google documents Chrome installation on Windows, macOS and Linux.",
+              "reviewed_on": "2026-10-15",
+              "url": "https://support.google.com/chrome/answer/95346"
+            }
+          ],
+          "compatibility_note": "Supported OS releases, CPU architectures and Linux distributions vary. Target compatibility is not checked."
+        }
+      ],
+      "id": "google-chrome",
+      "publisher": "Google LLC"
+    },
+    {
+      "match_rules": [
+        {
+          "name": "Microsoft Edge",
+          "publisher": "Microsoft Corporation",
+          "evidence": [
+            {
+              "summary": "Microsoft WinGet catalog records this product name and publisher.",
+              "reviewed_on": "2026-10-15",
+              "url": "https://github.com/microsoft/winget-pkgs/blob/master/manifests/m/Microsoft/Edge/155.0.4283.45/Microsoft.Edge.locale.en-US.yaml"
+            }
+          ]
+        }
+      ],
+      "name": "Microsoft Edge",
+      "platforms": [
+        {
+          "availability": "available",
+          "platform": "windows",
+          "evidence": [
+            {
+              "summary": "Microsoft offers Edge downloads for Windows, macOS and Linux.",
+              "reviewed_on": "2026-10-15",
+              "url": "https://www.microsoft.com/en-us/edge/download"
+            }
+          ],
+          "compatibility_note": "Supported OS releases and CPU architectures vary. WebView2, Beta, Dev and Canary are separate products or channels. Target compatibility is not checked."
+        },
+        {
+          "availability": "available",
+          "platform": "macos",
+          "evidence": [
+            {
+              "summary": "Microsoft offers Edge downloads for Windows, macOS and Linux.",
+              "reviewed_on": "2026-10-15",
+              "url": "https://www.microsoft.com/en-us/edge/download"
+            }
+          ],
+          "compatibility_note": "Supported OS releases and CPU architectures vary. WebView2, Beta, Dev and Canary are separate products or channels. Target compatibility is not checked."
+        },
+        {
+          "availability": "available",
+          "platform": "linux",
+          "evidence": [
+            {
+              "summary": "Microsoft offers Edge downloads for Windows, macOS and Linux.",
+              "reviewed_on": "2026-10-15",
+              "url": "https://www.microsoft.com/en-us/edge/download"
+            }
+          ],
+          "compatibility_note": "Supported OS releases and CPU architectures vary. WebView2, Beta, Dev and Canary are separate products or channels. Target compatibility is not checked."
+        }
+      ],
+      "id": "microsoft-edge",
+      "publisher": "Microsoft Corporation"
+    },
+    {
+      "match_rules": [
+        {
+          "name": "Discord",
+          "publisher": "Discord Inc.",
+          "evidence": [
+            {
+              "summary": "Microsoft WinGet catalog records this product name and publisher.",
+              "reviewed_on": "2026-10-15",
+              "url": "https://github.com/microsoft/winget-pkgs/blob/master/manifests/d/Discord/Discord/1.0.9262/Discord.Discord.locale.en-US.yaml"
+            }
+          ]
+        }
+      ],
+      "name": "Discord",
+      "platforms": [
+        {
+          "availability": "available",
+          "platform": "windows",
+          "evidence": [
+            {
+              "summary": "Discord lists Windows, macOS and Linux desktop downloads.",
+              "reviewed_on": "2026-10-15",
+              "url": "https://discord.com/download"
+            }
+          ],
+          "compatibility_note": "OS, CPU and Linux package requirements apply. Canary and PTB are separate channels. Target compatibility is not checked."
+        },
+        {
+          "availability": "available",
+          "platform": "macos",
+          "evidence": [
+            {
+              "summary": "Discord lists Windows, macOS and Linux desktop downloads.",
+              "reviewed_on": "2026-10-15",
+              "url": "https://discord.com/download"
+            }
+          ],
+          "compatibility_note": "OS, CPU and Linux package requirements apply. Canary and PTB are separate channels. Target compatibility is not checked."
+        },
+        {
+          "availability": "available",
+          "platform": "linux",
+          "evidence": [
+            {
+              "summary": "Discord lists Windows, macOS and Linux desktop downloads.",
+              "reviewed_on": "2026-10-15",
+              "url": "https://discord.com/download"
+            }
+          ],
+          "compatibility_note": "OS, CPU and Linux package requirements apply. Canary and PTB are separate channels. Target compatibility is not checked."
+        }
+      ],
+      "id": "discord",
+      "publisher": "Discord Inc."
+    },
+    {
+      "match_rules": [
+        {
+          "name": "Spotify",
+          "publisher": "Spotify AB",
+          "evidence": [
+            {
+              "summary": "Microsoft WinGet catalog records this product name and publisher.",
+              "reviewed_on": "2026-10-15",
+              "url": "https://github.com/microsoft/winget-pkgs/blob/master/manifests/s/Spotify/Spotify/1.3.5.3058.g5d40d5480152/Spotify.Spotify.locale.en-US.yaml"
+            }
+          ]
+        }
+      ],
+      "name": "Spotify",
+      "platforms": [
+        {
+          "availability": "available",
+          "platform": "windows",
+          "evidence": [
+            {
+              "summary": "Spotify lists Windows, macOS and Linux desktop downloads.",
+              "reviewed_on": "2026-10-15",
+              "url": "https://www.spotify.com/us/download/other/"
+            }
+          ],
+          "compatibility_note": "OS and CPU requirements apply. Linux availability does not imply support for every distribution; target compatibility is not checked."
+        },
+        {
+          "availability": "available",
+          "platform": "macos",
+          "evidence": [
+            {
+              "summary": "Spotify lists Windows, macOS and Linux desktop downloads.",
+              "reviewed_on": "2026-10-15",
+              "url": "https://www.spotify.com/us/download/other/"
+            }
+          ],
+          "compatibility_note": "OS and CPU requirements apply. Linux availability does not imply support for every distribution; target compatibility is not checked."
+        },
+        {
+          "availability": "available",
+          "platform": "linux",
+          "evidence": [
+            {
+              "summary": "Spotify publishes a Linux desktop client, with distribution and support limitations.",
+              "reviewed_on": "2026-10-15",
+              "url": "https://www.spotify.com/us/download/linux/"
+            }
+          ],
+          "compatibility_note": "OS and CPU requirements apply. Linux availability does not imply support for every distribution; target compatibility is not checked."
+        }
+      ],
+      "id": "spotify",
+      "publisher": "Spotify AB"
+    },
+    {
+      "match_rules": [
+        {
+          "name": "Obsidian",
+          "publisher": "Obsidian",
+          "evidence": [
+            {
+              "summary": "Microsoft WinGet catalog records this product name and publisher.",
+              "reviewed_on": "2026-10-15",
+              "url": "https://github.com/microsoft/winget-pkgs/blob/master/manifests/o/Obsidian/Obsidian/1.14.4/Obsidian.Obsidian.locale.en-US.yaml"
+            }
+          ]
+        }
+      ],
+      "name": "Obsidian",
+      "platforms": [
+        {
+          "availability": "available",
+          "platform": "windows",
+          "evidence": [
+            {
+              "summary": "Obsidian offers Windows, macOS and Linux desktop downloads.",
+              "reviewed_on": "2026-10-15",
+              "url": "https://obsidian.md/download"
+            }
+          ],
+          "compatibility_note": "Supported OS releases, CPU architectures and package formats vary. Target compatibility is not checked."
+        },
+        {
+          "availability": "available",
+          "platform": "macos",
+          "evidence": [
+            {
+              "summary": "Obsidian offers Windows, macOS and Linux desktop downloads.",
+              "reviewed_on": "2026-10-15",
+              "url": "https://obsidian.md/download"
+            }
+          ],
+          "compatibility_note": "Supported OS releases, CPU architectures and package formats vary. Target compatibility is not checked."
+        },
+        {
+          "availability": "available",
+          "platform": "linux",
+          "evidence": [
+            {
+              "summary": "Obsidian offers Windows, macOS and Linux desktop downloads.",
+              "reviewed_on": "2026-10-15",
+              "url": "https://obsidian.md/download"
+            }
+          ],
+          "compatibility_note": "Supported OS releases, CPU architectures and package formats vary. Target compatibility is not checked."
+        }
+      ],
+      "id": "obsidian",
+      "publisher": "Obsidian"
+    },
+    {
+      "match_rules": [
+        {
+          "name": "GitHub Desktop",
+          "publisher": "GitHub, Inc.",
+          "evidence": [
+            {
+              "summary": "GitHub declares GitHub Desktop as productName and GitHub, Inc. as companyName.",
+              "reviewed_on": "2026-10-15",
+              "url": "https://github.com/desktop/desktop/blob/development/app/package.json"
+            }
+          ]
+        }
+      ],
+      "name": "GitHub Desktop",
+      "platforms": [
+        {
+          "availability": "available",
+          "platform": "windows",
+          "evidence": [
+            {
+              "summary": "GitHub documents official Windows and macOS desktop support.",
+              "reviewed_on": "2026-10-15",
+              "url": "https://docs.github.com/en/desktop/overview/supported-operating-systems-for-github-desktop"
+            }
+          ],
+          "compatibility_note": "Requires a supported OS release and CPU architecture. Target compatibility is not checked."
+        },
+        {
+          "availability": "available",
+          "platform": "macos",
+          "evidence": [
+            {
+              "summary": "GitHub documents official Windows and macOS desktop support.",
+              "reviewed_on": "2026-10-15",
+              "url": "https://docs.github.com/en/desktop/overview/supported-operating-systems-for-github-desktop"
+            }
+          ],
+          "compatibility_note": "Requires a supported OS release and CPU architecture. Target compatibility is not checked."
+        },
+        {
+          "availability": "unavailable",
+          "platform": "linux",
+          "evidence": [
+            {
+              "summary": "GitHub explicitly states Linux is not officially supported and points to a separate community fork.",
+              "reviewed_on": "2026-10-15",
+              "url": "https://github.com/desktop/desktop/blob/development/README.md"
+            }
+          ],
+          "compatibility_note": "No official native Linux distribution. Community forks are separate products and are not associated with this catalog entry."
+        }
+      ],
+      "id": "github-desktop",
+      "publisher": "GitHub, Inc."
     }
   ]
 }
