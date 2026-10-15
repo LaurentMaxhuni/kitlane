@@ -66,11 +66,12 @@ jobs:
           cargo clippy --workspace --all-targets --locked -- -D warnings
       - name: Windows installer compiler
         if: runner.os == 'Windows'
-        run: choco install innosetup --version=6.7.3 --yes --no-progress
+        shell: pwsh
+        run: ./app/installer/setup-compiler.ps1 -Destination "$env:RUNNER_TEMP/inno"
       - name: Windows installer
         if: runner.os == 'Windows'
         shell: pwsh
-        run: ./app/installer/build.ps1
+        run: ./app/installer/build.ps1 -Compiler "$env:RUNNER_TEMP/inno/ISCC.exe"
       - name: macOS or Linux package
         if: runner.os != 'Windows'
         run: node app/installer/package.mjs

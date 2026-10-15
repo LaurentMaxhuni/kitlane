@@ -572,7 +572,8 @@ mod tests {
         egui_extras::install_image_loaders(&ctx);
         let mut app = KitlaneApp::preview(0, true, "loading");
         app.settings.reduced_motion = true;
-        for frame in 0..6 {
+        let mut idle_frames = 0;
+        for frame in 0..100 {
             let input = egui::RawInput {
                 time: Some(frame as f64),
                 screen_rect: Some(egui::Rect::from_min_size(
@@ -583,13 +584,20 @@ mod tests {
             };
             let mut output = ctx.run_ui(input, |ui| app.content(ui));
             output.textures_delta.clear();
-            if frame == 5 {
-                assert!(
-                    output.viewport_output[&egui::ViewportId::ROOT].repaint_delay
-                        > std::time::Duration::ZERO
-                );
+            if output.viewport_output[&egui::ViewportId::ROOT].repaint_delay
+                > std::time::Duration::ZERO
+            {
+                idle_frames += 1;
+                if idle_frames == 4 {
+                    break;
+                }
+            } else {
+                idle_frames = 0;
             }
+            // Image decoding can request a repaint even with animation disabled.
+            std::thread::sleep(std::time::Duration::from_millis(5));
         }
+        assert_eq!(idle_frames, 4, "Repaint causes: {:?}", ctx.repaint_causes());
         assert_eq!(ctx.global_style().animation_time, 0.0);
     }
 

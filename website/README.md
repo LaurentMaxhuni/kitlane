@@ -20,7 +20,7 @@ Upload the contents of `website/dist/` to a static host. Keep `download/index.ht
 
 ## Release status
 
-The download page links to the versioned `v0.1.2` GitHub preview release: Windows x64 setup, macOS Apple Silicon/Intel disk images, Linux x64/ARM64 archives, and SHA-256 checksums. These builds use the verified development account API and shared development Google OAuth. Windows install/uninstall and real sign-in were verified during development. Interactive macOS/Linux and physical two-computer checks remain pending. Windows downloads are unsigned; Mac downloads have ad-hoc signatures and no Apple notarization. The page states these limits.
+The download page links to the versioned `v0.1.3` GitHub preview release: Windows x64 setup, macOS Apple Silicon/Intel disk images, Linux x64/ARM64 archives, and SHA-256 checksums. These builds use the verified development account API and shared development Google OAuth. Windows install/uninstall and real sign-in were verified during development. Interactive macOS/Linux and physical two-computer checks remain pending. Windows downloads are unsigned; Mac downloads have ad-hoc signatures and no Apple notarization. The page states these limits.
 
 For each release, update `app/Cargo.toml`, release notes, and the website links/version/platform requirements. Push a matching `v<version>` tag. `.github/workflows/release.yml` builds and tests on native runners, packages all five targets, and publishes one prerelease only after every target succeeds. `workflow_dispatch` builds artifacts without publishing when run on a branch. Verify every website download URL and checksum before deploying the site. Never copy stale development executables into the website.
 

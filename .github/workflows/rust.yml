@@ -35,11 +35,12 @@ jobs:
       - run: cargo +1.97.1 clippy --workspace --all-targets --locked -- -D warnings
       - name: Windows installer compiler
         if: runner.os == 'Windows' && vars.KITLANE_ACCOUNT_API != ''
-        run: choco install innosetup --version=6.7.3 --yes --no-progress
+        shell: pwsh
+        run: ./installer/setup-compiler.ps1 -Destination "$env:RUNNER_TEMP/inno"
       - name: Build Windows installer
         if: runner.os == 'Windows' && vars.KITLANE_ACCOUNT_API != ''
         shell: pwsh
-        run: ./installer/build.ps1
+        run: ./installer/build.ps1 -Compiler "$env:RUNNER_TEMP/inno/ISCC.exe"
       - name: Save Windows installer
         if: runner.os == 'Windows' && vars.KITLANE_ACCOUNT_API != ''
         uses: actions/upload-artifact@v4
