@@ -2,7 +2,7 @@
 
 Native Rust desktop application using [egui/eframe](https://docs.rs/eframe/). Verified Google login through Neon is required before onboarding or the workspace. First-launch onboarding configures appearance, device name, and scan timing. The Library scans platform inventory in the background, saves it locally, and shows vendor-evidenced OS availability for a small bundled catalog. Search matches app names and publishers. Devices uses account-scoped pairing codes and explicit inventory sync, followed by review-only compatibility proposals. Settings saves appearance/scan preferences and provides Sign out.
 
-Inventory coverage: [Windows uninstall registry](docs/windows-inventory.md), [macOS application bundles](docs/macos-inventory.md), and [Linux Flatpak applications](docs/linux-inventory.md). Store/MSIX, portable software, other users, and Linux native packages are outside these adapters. macOS/Linux code has fixture and cross-compilation checks; native runtime validation remains pending. Catalog associations use metadata, not verified binary identity. Unknown apps remain unknown. Installation, updates, and AI suggestions are not enabled.
+Inventory coverage: [Windows uninstall registry](docs/windows-inventory.md), [macOS application bundles](docs/macos-inventory.md), and [Linux Flatpak applications](docs/linux-inventory.md). Store/MSIX, portable software, other users, and Linux native packages are outside these adapters. macOS/Linux code has fixture and native CI build/test checks; interactive runtime validation remains pending. Catalog associations use metadata, not verified binary identity. Unknown apps remain unknown. Installation, updates, and AI suggestions are not enabled.
 
 Registry size checks are not atomic: another local process can enlarge a value while it is read. See [scanner coverage and limits](docs/windows-inventory.md).
 
@@ -49,6 +49,8 @@ Build the x64 installer on Windows with Inno Setup 6.7+:
 The build script requires a verified HTTPS API origin (argument or `KITLANE_ACCOUNT_API`) and always rebuilds the executable with that address before packaging. It generates branded artwork from shared design tokens and emits `../dist/Kitlane-<version>-Setup-x64.exe`. The ordinary Rust checks workflow packages Windows only when repository variable `KITLANE_ACCOUNT_API` is configured. Windows installers are unsigned; release signing needs a separately configured certificate.
 
 ### Cross-platform previews
+
+[Download Kitlane 0.1.3](https://github.com/LaurentMaxhuni/kitlane/releases/tag/v0.1.3). All five platform jobs and publication passed in [the release run](https://github.com/LaurentMaxhuni/kitlane/actions/runs/38730969663). Windows compiler setup downloads the pinned official Inno Setup 6.7.3 installer and verifies its SHA-256 before running it.
 
 `.github/workflows/release.yml` tests and packages Windows x64, macOS Apple Silicon/Intel, and Linux x64/ARM64 on native runners. Matching `v<version>` tags publish a GitHub prerelease with all five packages and `SHA256SUMS.txt` only after every target passes. Manual branch runs save build artifacts without publishing. The preview workflow explicitly configures the verified development API.
 

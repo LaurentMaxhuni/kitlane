@@ -2,6 +2,8 @@
 
 Self-contained, dependency-free marketing website, separate from the Rust app and shared design-system tooling. Landing page at `/`; download page at `/download/`.
 
+Production: [kitlane-lake.vercel.app](https://kitlane-lake.vercel.app/) · [Downloads](https://kitlane-lake.vercel.app/download/). Vercel deploys `main` from the connected GitHub repository.
+
 Requires Node.js 22+ for the development server and build scripts. The deployed pages require only static hosting.
 
 ```powershell
