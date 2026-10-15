@@ -13,7 +13,7 @@ impl KitlaneApp {
         }) else {
             return;
         };
-        let app = &self.snapshot.as_ref().unwrap().apps[index];
+        let app = self.snapshot.as_ref().unwrap().apps[index].clone();
         let p = theme::palette(self.dark);
         let mut close = false;
         card(p).show(ui, |ui| {
@@ -41,8 +41,10 @@ impl KitlaneApp {
                     if ui.button("Copy app information").clicked() { ui.ctx().copy_text(format!("{}\nPublisher: {}\nVersion: {}",app.name,app.publisher.as_deref().unwrap_or("Unknown"),app.version.as_deref().unwrap_or("Unknown"))); }
                 });
             });
+            self.program_update_control(ui, &app);
         });
         ui.add_space(16.0);
+        self.suggestions_view(ui, &app);
         if close {
             self.selected_app = None;
         }

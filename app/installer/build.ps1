@@ -16,7 +16,7 @@ $priorAccountApi = $env:KITLANE_ACCOUNT_API
 $env:KITLANE_ACCOUNT_API = $accountUri.GetLeftPart([UriPartial]::Authority)
 Push-Location $appRoot
 try {
-    & cargo build --release --locked --bin kitlane
+    & cargo build --release --locked --bin kitlane --bin kitlane-agent
     if ($LASTEXITCODE -ne 0) { throw "Cargo build failed ($LASTEXITCODE)." }
     $binary = Join-Path $appRoot 'target\release\kitlane.exe'
     if (!(Test-Path -LiteralPath $binary -PathType Leaf)) { throw "Missing release binary: $binary" }

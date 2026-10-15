@@ -50,6 +50,7 @@ Name: "desktopicon"; Description: "Create a &desktop shortcut"; GroupDescription
 
 [Files]
 Source: "{#BinaryPath}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\target\release\kitlane-agent.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\design-system\assets\icons\app-icon.ico"; DestDir: "{app}"; DestName: "kitlane.ico"; Flags: ignoreversion
 Source: "..\..\design-system\assets\fonts\Inter-OFL.txt"; DestDir: "{app}\licenses"; Flags: ignoreversion
 Source: "..\..\design-system\assets\fonts\Sora-OFL.txt"; DestDir: "{app}\licenses"; Flags: ignoreversion
@@ -62,7 +63,11 @@ Source: "..\core\catalog\winget-LICENSE.txt"; DestDir: "{app}\licenses"; Flags: 
 Name: "{autoprograms}\Kitlane"; Filename: "{app}\kitlane.exe"; IconFilename: "{app}\kitlane.ico"
 Name: "{autodesktop}\Kitlane"; Filename: "{app}\kitlane.exe"; IconFilename: "{app}\kitlane.ico"; Tasks: desktopicon
 
+[Registry]
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: none; ValueName: "KitlaneMaintenance"; Flags: dontcreatekey uninsdeletevalue
+
 [Run]
+Filename: "{app}\kitlane-agent.exe"; Parameters: "--background"; Flags: nowait runhidden
 Filename: "{app}\kitlane.exe"; Description: "Launch Kitlane and set up your workspace"; Flags: nowait postinstall skipifsilent
 
 [Messages]

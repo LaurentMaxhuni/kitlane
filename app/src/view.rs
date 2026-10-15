@@ -18,16 +18,6 @@ pub(super) fn caption(ui: &mut egui::Ui, text: impl Into<String>, p: &Palette) {
     ui.label(RichText::new(text).size(12.0).color(p.muted));
 }
 
-fn badge(ui: &mut egui::Ui, text: &str, color: Color32, fill: Color32) {
-    Frame::new()
-        .fill(fill)
-        .corner_radius(6)
-        .inner_margin(Margin::symmetric(8, 4))
-        .show(ui, |ui| {
-            ui.label(RichText::new(text).size(11.0).color(color));
-        });
-}
-
 pub(super) fn primary(text: &str, p: &Palette, enabled: bool) -> egui::Button<'static> {
     egui::Button::new(RichText::new(text.to_owned()).color(if enabled {
         p.action_text
@@ -280,7 +270,7 @@ impl KitlaneApp {
                     ui.add_space(12.0);
                     self.navigation(ui, false);
                     ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
-                        caption(ui, "Kitlane  ·  0.1", p);
+                        caption(ui, format!("Kitlane  ·  {}", env!("CARGO_PKG_VERSION")), p);
                     });
                 });
         }
@@ -861,30 +851,6 @@ impl KitlaneApp {
                 self.save_setup_step(0, false);
             }
         });
-        ui.add_space(16.0);
-        card(p).show(ui, |ui| {
-            ui.set_min_width(ui.available_width());
-            ui.label(RichText::new("Automation").size(18.0));
-            caption(
-                ui,
-                "Installation, updates, and AI alternatives are not enabled yet.",
-                p,
-            );
-            ui.add_space(12.0);
-            for label in [
-                "Install compatible counterparts",
-                "Keep applications up to date",
-                "Suggest alternatives",
-            ] {
-                ui.horizontal(|ui| {
-                    ui.label(label);
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        ui.set_min_width(ui.available_width());
-                        badge(ui, "Not enabled", p.muted, p.bg);
-                    });
-                });
-                ui.add_space(8.0);
-            }
-        });
+        self.automation_settings(ui);
     }
 }

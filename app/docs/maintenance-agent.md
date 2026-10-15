@@ -1,0 +1,9 @@
+# Background maintenance
+
+`kitlane-agent.exe` is installed beside the UI on Windows. Opt-in policies register only `KitlaneMaintenance` under the current user's Run key. Disabling all policies removes that value; pending explicit requests finish, and idle disabled agents exit. A process lock prevents duplicate agents. The UI holds a shared lifetime lock so Kitlane's own installer waits for its windows to close.
+
+Policies, bounded requests, accepted alternatives and an audit ledger live in `%LOCALAPPDATA%/Kitlane/maintenance.json`, separately from `state.redb`. A separate file lock serializes UI/agent mutations. Writes are validated, size bounded and atomically replaced; corrupt files remain untouched. Secrets are stored in neither file. Background processes do not receive AI or release-signing environment credentials.
+
+An interrupted program installer is reconciled against inventory and marked indeterminate, not replayed. Settings exposes an explicit review action before a fresh attempt. Indeterminate history cannot be pruned away to bypass that guard. Provider operations and inventory verification run off the coordinator loop; a running third-party installer is never terminated when policy changes. Policy changes control future jobs.
+
+The Windows installer bundles and restarts the agent even for a silent self-update. With defaults off, the agent exits without performing update checks. macOS/Linux automatic update execution and login registration are currently unsupported; their AI features and local preferences remain available.

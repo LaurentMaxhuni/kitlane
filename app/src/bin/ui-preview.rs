@@ -11,6 +11,19 @@ mod theme;
 mod worker;
 
 #[cfg(debug_assertions)]
+#[path = "../ai_client.rs"]
+#[allow(dead_code)]
+mod ai_client;
+#[cfg(debug_assertions)]
+#[path = "../maintenance_agent.rs"]
+#[allow(dead_code)]
+mod maintenance_agent;
+#[cfg(debug_assertions)]
+#[path = "../self_update.rs"]
+#[allow(dead_code)]
+mod self_update;
+
+#[cfg(debug_assertions)]
 mod preview {
     use eframe::egui;
     use std::{
@@ -84,10 +97,18 @@ mod preview {
                 .map_err(|_| "State must be UTF-8")?;
             if !matches!(
                 state.as_str(),
-                "normal" | "empty" | "loading" | "error" | "long" | "reduced" | "details"
+                "normal"
+                    | "empty"
+                    | "loading"
+                    | "error"
+                    | "long"
+                    | "reduced"
+                    | "details"
+                    | "automation"
+                    | "alternatives"
             ) {
                 return Err(
-                    "State must be normal, empty, loading, error, long, reduced, or details".into(),
+                    "State must be normal, empty, loading, error, long, reduced, details, automation, or alternatives".into(),
                 );
             }
             let dimension = |value: OsString, name: &str, min: u32, max: u32| {

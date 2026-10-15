@@ -1,5 +1,10 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod ai_client;
+#[allow(dead_code)] // UI helpers and background runtime share this module.
+mod maintenance_agent;
+#[allow(dead_code)] // Shared update implementation also runs in the separate agent binary.
+mod self_update;
 mod shell;
 mod theme;
 mod worker;

@@ -96,6 +96,16 @@ jobs:
         with:
           path: dist
           merge-multiple: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Sign Windows update metadata
+        env:
+          KITLANE_UPDATE_SIGNING_KEY: ${{ secrets.KITLANE_UPDATE_SIGNING_KEY }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          sequence=$((GITHUB_RUN_NUMBER * 1000 + GITHUB_RUN_ATTEMPT))
+          node app/installer/sign-update.mjs "dist/Kitlane-$version-Setup-x64.exe" "$version" "$sequence" dist/update-preview-v1.json
       - name: Publish all verified build artifacts together
         env:
           GH_TOKEN: ${{ github.token }}
@@ -103,4 +113,4 @@ jobs:
           cd dist
           test "$(find . -maxdepth 1 -name 'Kitlane-*' -type f | wc -l)" -eq 5
           sha256sum Kitlane-* > SHA256SUMS.txt
-          gh release create "$GITHUB_REF_NAME" Kitlane-* SHA256SUMS.txt --repo "$GITHUB_REPOSITORY" --verify-tag --prerelease --title "Kitlane $GITHUB_REF_NAME preview" --notes-file ../app/installer/RELEASE-NOTES.md
+          gh release create "$GITHUB_REF_NAME" Kitlane-* SHA256SUMS.txt update-preview-v1.json --repo "$GITHUB_REPOSITORY" --verify-tag --prerelease --title "Kitlane $GITHUB_REF_NAME preview" --notes-file ../app/installer/RELEASE-NOTES.md

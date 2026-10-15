@@ -4,6 +4,8 @@ mod account;
 mod chrome;
 #[path = "devices.rs"]
 mod devices;
+#[path = "features.rs"]
+mod features;
 #[path = "library.rs"]
 mod library;
 #[path = "logos.rs"]
@@ -97,6 +99,7 @@ pub struct KitlaneApp {
     auth_busy: bool,
     signing_in: bool,
     paired_devices: Vec<DeviceInfo>,
+    features: features::Features,
 }
 
 impl KitlaneApp {
@@ -208,18 +211,23 @@ impl KitlaneApp {
         if state == "reduced" {
             app.settings.reduced_motion = true;
         }
-        if state == "details" {
+        if matches!(state, "details" | "alternatives") {
             app.selected_app = app
                 .snapshot
                 .as_ref()
                 .and_then(|snapshot| snapshot.apps.first().map(|app| app.id.clone()));
         }
+        if matches!(state, "automation" | "alternatives") {
+            app.features.focus_preview = true;
+        }
         app
     }
 
     pub fn new(ctx: egui::Context) -> Self {
+        let features = features::Features::start(ctx.clone());
         let worker = worker::start(ctx);
         Self {
+            features,
             worker: Some(worker),
             auth_busy: true,
             ..Self::default()
@@ -245,6 +253,9 @@ impl KitlaneApp {
     }
 
     fn receive_events(&mut self, ctx: &egui::Context) {
+        if self.features.poll(ctx, self.device.as_ref()) && !self.scanning {
+            self.scan();
+        }
         loop {
             let event = self
                 .worker
