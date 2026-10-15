@@ -155,7 +155,7 @@ h3{font-size:24px;line-height:1.3;letter-spacing:-.045em}
 .windows-icon{display:grid;grid-template-columns:repeat(2,18px);grid-template-rows:repeat(2,18px);gap:3px}
 .windows-icon i{background:var(--ink)}
 .status-pill,.quiet-pill{display:inline-flex;gap:7px;align-items:center;font-size:10px;font-weight:500;background:#d4ebf4;color:#285268;border-radius:25px;padding:8px 11px}
-.status-pill>span{width:5px;height:5px;border-radius:50%;background:#386d84}
+.status-pill>span[aria-hidden]{width:5px;height:5px;border-radius:50%;background:#386d84}
 .windows-download h2{font-size:29px;margin-bottom:17px;letter-spacing:-.05em}
 .windows-download>p:not(.release-message){font-size:14px}
 .release-meta{display:flex;gap:12px;margin-block:26px;font-size:11px;color:#4b687b;flex-wrap:wrap}
