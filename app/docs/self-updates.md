@@ -48,6 +48,10 @@ discovery still relies on authenticated GitHub availability and ordering.
 
 ## Provisioning and signing
 
+The bundled root pins `kitlane-release-2026-01`, provisioned in the maintainer's
+OS credential vault with explicit approval on 2026-10-15. Reuse that credential
+for local signing; do not generate a replacement during ordinary builds.
+
 Run `cargo run --manifest-path app/Cargo.toml --bin sign-update -- keygen` once
 on the maintainer machine. It refuses to replace an existing credential and
 stores the 32-byte random seed in the OS credential vault using account

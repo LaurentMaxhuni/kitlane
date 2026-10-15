@@ -1,6 +1,11 @@
 {
   "schema": 1,
   "minimum_sequence": 1,
-  "keys": [],
+  "keys": [
+    {
+      "id": "kitlane-release-2026-01",
+      "public_key": "Fy51jVmSuZiAZUlu0cm6yLLPRRwb7GlxOwrGnwFrjVc="
+    }
+  ],
   "revoked_key_ids": []
 }
