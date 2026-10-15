@@ -1,8 +1,10 @@
 import { cp, mkdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { check } from './check.mjs';
+import { execFileSync } from 'node:child_process';
 
 await check();
+execFileSync(process.execPath, ['--test', 'tests/downloads.test.mjs'], { cwd: fileURLToPath(new URL('../', import.meta.url)), stdio: 'inherit' });
 const root = new URL('../', import.meta.url);
 const output = new URL('dist/', root);
 await mkdir(output, { recursive: true });

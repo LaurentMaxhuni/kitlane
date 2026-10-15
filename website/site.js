@@ -35,3 +35,15 @@ document.querySelectorAll('[data-preview]').forEach(button => {
   });
 });
 document.querySelectorAll('[data-year]').forEach(element => { element.textContent = new Date().getFullYear(); });
+
+if (document.querySelector('[data-release-status]')) {
+  fetch(new URL('../api/download', location.href), { cache: 'no-store', signal: AbortSignal.timeout(12_000) })
+    .then(response => { if (!response.ok) throw new Error('Release unavailable'); return response.json(); })
+    .then(release => {
+      if (!/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(release.version)) throw new Error('Invalid release');
+      const label = `${release.preview ? 'Preview' : 'Version'} ${release.version}`;
+      document.querySelectorAll('[data-release-version]').forEach(element => { element.textContent = label; });
+      document.querySelector('[data-release-status]').textContent = `Current download: Kitlane ${release.version}.`;
+    })
+    .catch(() => { document.querySelector('[data-release-status]').textContent = 'Version lookup unavailable. Try a download link again shortly or open GitHub Releases below.'; });
+}

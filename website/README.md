@@ -1,10 +1,10 @@
 # Kitlane website
 
-Self-contained, dependency-free marketing website, separate from the Rust app and shared design-system tooling. Landing page at `/`; download page at `/download/`.
+Dependency-free marketing website, separate from the Rust app and shared design-system tooling. Landing page at `/`; download page at `/download/`. A small Vercel Node function resolves published downloads.
 
 Production: [kitlane-lake.vercel.app](https://kitlane-lake.vercel.app/) · [Downloads](https://kitlane-lake.vercel.app/download/). Vercel deploys `main` from the connected GitHub repository.
 
-Requires Node.js 22+ for the development server and build scripts. The deployed pages require only static hosting.
+Requires Node.js 22 for the development server, build scripts and download function.
 
 ```powershell
 cd website
@@ -18,13 +18,19 @@ npm run check
 npm run build
 ```
 
-Upload the contents of `website/dist/` to a static host. Keep `download/index.html` and all assets together; directory index hosting supports `/download/`. Paths also work when deployed under a subdirectory. No external fonts, third-party scripts, trackers, API requests, or install step. Vercel uses project root `website`, `npm run build`, and output `dist`; `vercel.json` records the static build settings. Native downloads are hosted on GitHub Releases, outside the website bundle.
+Vercel uses project root `website`, `npm run build`, and static output `dist`, plus `api/download.js`; `vercel.json` records the build settings. The build checks local references and runs the download tests before producing output. Deploy the project through Vercel's Git integration so it includes the API function; copying only `dist` to a static host does not provide automatic downloads. No external fonts, third-party scripts, trackers, dependencies or install step. Native downloads stay on GitHub Releases, outside the website bundle.
 
 ## Release status
 
-The download page links to the versioned `v0.1.3` GitHub preview release: Windows x64 setup, macOS Apple Silicon/Intel disk images, Linux x64/ARM64 archives, and SHA-256 checksums. These builds use the verified development account API and shared development Google OAuth. Windows install/uninstall and real sign-in were verified during development. Interactive macOS/Linux and physical two-computer checks remain pending. Windows downloads are unsigned; Mac downloads have ad-hoc signatures and no Apple notarization. The page states these limits.
+The page uses permanent `/api/download?platform=...` URLs for Windows x64, macOS Apple Silicon/Intel, Linux x64/ARM64, checksums and release notes. Without `platform`, the endpoint returns the selected version and download URLs as JSON, which updates the page's version labels. Download links work with JavaScript disabled.
 
-For each release, update `app/Cargo.toml`, release notes, and the website links/version/platform requirements. Push a matching `v<version>` tag. `.github/workflows/release.yml` builds and tests on native runners, packages all five targets, and publishes one prerelease only after every target succeeds. `workflow_dispatch` builds artifacts without publishing when run on a branch. Verify every website download URL and checksum before deploying the site. Never copy stale development executables into the website.
+The resolver checks the 100 most recent GitHub releases and chooses the highest numeric `v<major>.<minor>.<patch>` version, including previews. It skips drafts and incomplete uploads: all five expected packages and `SHA256SUMS.txt` must be uploaded, nonempty, unique and hosted at their exact official release URLs. Shared lookups expire after 60 seconds; redirects and JSON use `no-store`, with no stale fallback after lookup failure. Failures return 503 with a retry message. This checks release completeness, not installer publisher certificates or update signatures; Kitlane's built-in updater verifies its signed metadata separately.
+
+Public GitHub lookup needs no credential. For higher traffic, configure optional Vercel server-only `GITHUB_RELEASES_TOKEN` with read-only Contents access to this repository to avoid GitHub's unauthenticated API limit. Never expose it in page scripts. No credential is required by the local build or fixture tests.
+
+For each release, update `app/Cargo.toml` and release notes, then push a matching `v<version>` tag. `.github/workflows/release.yml` tests and packages all five targets, signs Windows update metadata using `KITLANE_UPDATE_SIGNING_KEY`, and publishes one prerelease after every target succeeds. A missing CI signing secret blocks publication. `workflow_dispatch` on a branch builds artifacts without publishing. Once publication is complete, the website discovers that version within a minute without edits or redeployment. Platform requirements and feature descriptions still need review when support changes. Never copy development executables into the website.
+
+The packages use the verified development account API and shared development Google OAuth. Interactive macOS/Linux and physical two-computer checks remain pending. Windows downloads have no publisher certificate; Mac downloads have ad-hoc signatures and no Apple notarization. The page states these limits.
 
 ## Assets
 

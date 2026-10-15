@@ -17,6 +17,12 @@ export async function check() {
       if (/^https:\/\//.test(reference)) continue;
       const target = new URL(reference, file);
       assert(target.pathname.startsWith(root.pathname), `${name}: reference outside website: ${reference}`);
+      if (target.pathname === new URL('api/download', root).pathname) {
+        assert.match(target.search, /^\?platform=(windows-x64|macos-(arm64|x64)|linux-(arm64|x64)|checksums|notes)$/);
+        await stat(new URL('api/download.js', root));
+        references++;
+        continue;
+      }
       let targetFile = new URL(target.href);
       targetFile.hash = '';
       const info = await stat(targetFile);

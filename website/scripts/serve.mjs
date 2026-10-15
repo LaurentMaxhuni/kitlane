@@ -2,6 +2,7 @@ import http from 'node:http';
 import { readFile, realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import downloads from '../api/download.js';
 
 const root = await realpath(fileURLToPath(new URL('../', import.meta.url)));
 const port = Number(process.env.PORT || 4174);
@@ -12,6 +13,12 @@ const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, 'http://localhost');
     const pathname = decodeURIComponent(url.pathname);
+    if (pathname === '/api/download' || pathname === '/api/download/') {
+      const response = await downloads.fetch(new Request(url, { method: req.method }));
+      res.writeHead(response.status, Object.fromEntries(response.headers));
+      res.end(req.method === 'HEAD' ? undefined : Buffer.from(await response.arrayBuffer()));
+      return;
+    }
     const relative = pathname.replace(/^\/+/, '') || 'index.html';
     if (!allowed.includes(relative.split('/')[0]) || relative.includes('\\')) { res.writeHead(404).end('Not found'); return; }
     let target = await realpath(path.resolve(root, relative));
