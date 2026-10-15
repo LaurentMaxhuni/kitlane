@@ -69,7 +69,10 @@ cargo run --manifest-path app/Cargo.toml --bin sign-update -- sign dist/Kitlane-
 
 For CI, a maintainer must separately provision the same base64 32-byte seed as
 the masked GitHub Actions secret `KITLANE_UPDATE_SIGNING_KEY` through an approved
-secret-management channel. No application or repository automation exports the
+secret-management channel. That secret was provisioned for `LaurentMaxhuni/kitlane`
+on 2026-10-15 through authenticated GitHub CLI's locally encrypted stdin input,
+after checking the vault credential against the pinned public key. No plaintext
+key file or command argument was used. No application or repository automation exports the
 vault secret. The publish job invokes the Node built-in-crypto signer with that
 secret in the environment, checks that its public key is in the bundled root,
 and publishes metadata alongside the five existing packages. Missing/wrong

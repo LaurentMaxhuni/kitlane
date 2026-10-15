@@ -684,6 +684,7 @@ mod tests {
                 .as_nanos()
         ));
         fs::create_dir_all(&temp).unwrap();
+        let temp = fs::canonicalize(temp).unwrap();
         let (root, bytes, _) = fixture();
         let verified = verify(&root, &bytes, "0.1.3", "windows", "x86_64", 1_500, None).unwrap();
         record_accepted(&temp, &verified).unwrap();

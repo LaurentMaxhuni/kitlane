@@ -512,8 +512,7 @@ pub fn run() -> Result<(), String> {
                         WorkerResult::ProgramStarted(Err(outcome)) => {
                             program_finished(&store, &id, outcome)?
                         }
-                        WorkerResult::ProgramPolled(running, Some(outcome)) => {
-                            drop(running);
+                        WorkerResult::ProgramPolled(_running, Some(outcome)) => {
                             program_finished(&store, &id, outcome)?;
                         }
                         WorkerResult::ProgramPolled(running, None) => {
