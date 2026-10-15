@@ -1,0 +1,105 @@
+name: Desktop preview release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  # Verified development service; these are explicitly preview builds.
+  KITLANE_ACCOUNT_API: https://br-damp-cell-batye88a-kitlane.compute.c-8.eu-central-1.aws.neon.tech
+  CARGO_TERM_COLOR: always
+
+jobs:
+  package:
+    name: Package ${{ matrix.platform }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: windows-latest, platform: Windows-x64 }
+          - { os: macos-14, platform: macOS-arm64 }
+          - { os: macos-15-intel, platform: macOS-x64 }
+          - { os: ubuntu-22.04, platform: Linux-x64 }
+          - { os: ubuntu-24.04-arm, platform: Linux-arm64 }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    env:
+      MACOSX_DEPLOYMENT_TARGET: '12.0'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Linux native dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev libxkbcommon-dev libwayland-dev libegl1-mesa-dev
+      - name: Rust toolchain
+        run: rustup toolchain install 1.97.1 --profile minimal --component rustfmt --component clippy
+      - run: rustup default 1.97.1
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            app/target
+          key: release-${{ matrix.platform }}-${{ hashFiles('app/Cargo.lock') }}-v1
+      - name: Check tag version
+        if: github.ref_type == 'tag'
+        shell: bash
+        run: |
+          version=$(cargo metadata --manifest-path app/Cargo.toml --no-deps --format-version 1 --locked | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>console.log(JSON.parse(s).packages.find(p=>p.name==="kitlane").version))')
+          test "$GITHUB_REF_NAME" = "v$version"
+      - name: Native tests and lint
+        working-directory: app
+        shell: bash
+        run: |
+          cargo fmt --all --check
+          cargo test --workspace --locked
+          cargo clippy --workspace --all-targets --locked -- -D warnings
+      - name: Windows installer compiler
+        if: runner.os == 'Windows'
+        run: choco install innosetup --version=6.7.3 --yes --no-progress
+      - name: Windows installer
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./app/installer/build.ps1
+      - name: macOS or Linux package
+        if: runner.os != 'Windows'
+        run: node app/installer/package.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Kitlane-${{ matrix.platform }}
+          path: |
+            dist/Kitlane-*.exe
+            dist/Kitlane-*.dmg
+            dist/Kitlane-*.tar.gz
+          if-no-files-found: error
+
+  publish:
+    needs: package
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Publish all verified build artifacts together
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd dist
+          test "$(find . -maxdepth 1 -name 'Kitlane-*' -type f | wc -l)" -eq 5
+          sha256sum Kitlane-* > SHA256SUMS.txt
+          gh release create "$GITHUB_REF_NAME" Kitlane-* SHA256SUMS.txt --repo "$GITHUB_REPOSITORY" --verify-tag --prerelease --title "Kitlane $GITHUB_REF_NAME preview" --notes-file ../app/installer/RELEASE-NOTES.md
