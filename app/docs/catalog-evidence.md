@@ -2,11 +2,11 @@
 
 Reviewed 2026-10-11. Bundled metadata only; no runtime network, installer URLs, package commands, provider IDs or automatic installation. Canonical IDs are internal Kitlane IDs.
 
-Expanded 2026-10-15 to 15 products and 19 exact Windows name/publisher pairs. The twelve additions below add Windows associations and official OS availability facts; macOS bundle matching still covers VLC only. Linux inventory associations remain unknown.
+Expanded 2026-10-15 to 15 curated products and 19 exact Windows name/publisher pairs, plus a generated WinGet index of 8,174 packages with 106,491 unambiguous product identifiers. Curated entries retain reviewed official OS availability; provider-only matches keep availability unknown. macOS bundle matching still covers VLC only. Linux inventory associations remain unknown.
 
 A match means **catalog association from source metadata**. Registry display names, publishers and bundle identifiers can be forged. Matching does not verify binary publisher identity, package origin, executable signatures or safe-install authorization. Availability means an official native product exists for the OS family. It does not establish compatibility with a device's architecture, OS version, distribution, license or deployment environment.
 
-`WindowsRegistry` observations require exact, case-sensitive display-name and publisher pairs. `MacosBundle` observations require an exact reviewed bundle identifier; display names can vary and do not establish identity. Version, scope, registry key and package origin do not establish identity. Manual entries, Flatpak metadata, missing required identifiers and unreviewed metadata remain unknown. No punctuation stripping, case folding, substring matching or generic suffix removal. Identity unknown never means Windows-only.
+`WindowsRegistry` observations first use exact, case-sensitive curated display-name/publisher pairs. Otherwise a recognized uninstall subkey can associate with an exact WinGet product identifier, using ASCII case-insensitive registry-key comparison. Display-name versions and suffixes are never stripped. A publisher must still be present; it remains observed metadata. `MacosBundle` observations require an exact reviewed bundle identifier. Version, scope, registry key and package origin do not verify executable identity. Manual entries, Flatpak metadata, missing required identifiers and ambiguous identifiers remain unknown. Identity unknown never means Windows-only.
 
 | Product | Exact reviewed registry pairs | Native availability |
 | --- | --- | --- |
@@ -26,7 +26,29 @@ A match means **catalog association from source metadata**. Registry display nam
 | Obsidian | `Obsidian`; publisher `Obsidian` | Windows, macOS, Linux available |
 | GitHub Desktop | `GitHub Desktop`; publisher `GitHub, Inc.` | Windows, macOS available; official Linux product unavailable |
 
-## Identity evidence
+## WinGet index and refresh
+
+The build bundles a compact import of Microsoft's [WinGet source index](https://cdn.winget.microsoft.com/cache/source2.msix), with no runtime download, package-manager dependency, executable invocation, installation or source-agreement acceptance. The upstream source has 15,645 package records; only packages with unambiguous, valid product codes are imported. Exact registration identifiers cover MSI GUIDs and named uninstall keys, including historical versions retained upstream. Shared codes across different packages, malformed metadata and unsupported index schemas are excluded or rejected. Name similarity and publisher normalization are not used.
+
+The checked-in [index](../core/catalog/winget-index.json) records its source URL, source update date, generation date and source archive SHA-256: `712fdaf54275f710c7316d253589ebf74102ac9f3ddace2e5de01087e7c36d8e`. This hash records provenance; it is not vendor-signature verification. Microsoft's MIT license is included beside the data and copied into all native release packages.
+
+Provider identities are namespaced as `winget:<PackageIdentifier>`. An explicit `winget_id` alias maps an imported identifier to an existing curated product, preserving cross-device identity and its reviewed availability. App details distinguish curated metadata from WinGet identifier matches. Imported-only products have no reviewed OS claims, including Windows: a community package listing does not prove official native vendor support.
+
+Windows inventory exposes only registration keys recognized by this index; unrecognized keys remain private. Older saved/shared snapshots without identifiers still use curated matching until a rescan. Matching uses a process-wide validated index and binary search, so it does not rebuild or scan the entire provider catalog per app.
+
+Refresh explicitly from the repository root with Python 3.11+ (stdlib only):
+
+```powershell
+$catalogSource = Join-Path $env:TEMP 'kitlane-winget-source2.msix'
+Invoke-WebRequest 'https://cdn.winget.microsoft.com/cache/source2.msix' -OutFile $catalogSource
+python app/tools/import-winget-catalog.py --source $catalogSource --output app/core/catalog/winget-index.json --generated-on 2026-10-15
+python -m unittest discover -s app/tools/tests -v
+cargo test --manifest-path app/Cargo.toml -p kitlane-core --locked
+```
+
+Set the generation date to the actual refresh date. Inspect the resulting source hash and catalog diff before committing. The importer bounds archive/database/output sizes and record counts, rejects unknown schemas, sorts deterministically, removes ambiguous codes after registry case folding, and replaces the output atomically only after successful validation. It never fetches or runs an installer.
+
+## Curated identity evidence
 
 VS Code's [vendor installer](https://github.com/microsoft/vscode/blob/main/build/win32/code.iss) sets its publisher; [build logic](https://github.com/microsoft/vscode/blob/main/build/gulpfile.vscode.win32.ts) appends the literal `(User)` suffix for that installer. Microsoft's [stable product catalog metadata](https://github.com/microsoft/winget-pkgs/blob/master/manifests/m/Microsoft/VisualStudioCode/1.105.0/Microsoft.VisualStudioCode.locale.en-US.yaml) supplies the branded product name and publisher. This does not include Insiders, Code - OSS, VSCodium or Visual Studio IDE.
 
@@ -69,3 +91,5 @@ Unit tests cover reviewed pairs and bundle IDs, publisher mismatch/missing publi
 Expansion regression fixtures cover all twelve added products, mismatched publishers, channel suffixes, Firefox maintenance/ESR, Brave Nightly, Discord Canary, Edge WebView2 and GitHub's deployment tool. Official GitHub Desktop Linux unavailability is asserted separately.
 
 Windows validation, 2026-10-15: 136 workspace tests passed, two opt-in tests ignored; strict workspace Clippy and formatting passed. The same read-only native inventory diagnostic reported 144 applications and three coverage warnings before and after expansion; catalog matches increased from one to eleven. Run native diagnostics outside the restricted sandbox, which hides parts of the user registry; account/sync tests also need loopback sockets unavailable inside that sandbox.
+
+WinGet follow-up validation, 2026-10-15: 141 workspace tests passed, two opt-in tests ignored; six importer tests passed. Strict workspace Clippy, formatting and packaging-script syntax checks passed. Regeneration from the same archive/date was byte-for-byte identical. Malformed schema/database, duplicate package IDs, invalid dates and ambiguous codes are covered; a failed refresh leaves existing output intact. Independent code review completed with its importer validation finding fixed. The same native diagnostic found 60 catalog matches among 144 applications (49 via WinGet identifiers), with the same three coverage warnings. Native installer builds and interactive macOS/Linux checks were not rerun for this change.

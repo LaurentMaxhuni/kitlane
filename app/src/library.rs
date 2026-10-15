@@ -29,11 +29,15 @@ impl KitlaneApp {
                     if let Some(native) = &app.native_id { ui.label(format!("Native identifier: {native}")); }
                     if let Some(origin) = &app.origin { ui.label(format!("Package origin: {origin}")); }
                     if let Some(MatchOutcome::Matched(product)) = self.matches.get(index) {
+                        ui.label(format!("Match source: {}", product.association.label()));
+                        if let Some(id) = &product.winget_id {
+                            ui.label(format!("WinGet: {id}"));
+                        }
                         ui.horizontal_wrapped(|ui| {
                             for support in &product.platforms { ui.label(format!("{}: {}",support.platform.label(),support.availability.label())); }
                         });
                         caption(ui,"Catalog associations use metadata; executable identity and target compatibility still need verification.",p);
-                    } else { caption(ui,"This app has no reviewed catalog match. Availability stays unknown.",p); }
+                    } else { caption(ui,"This app has no catalog match. Availability stays unknown.",p); }
                     if ui.button("Copy app information").clicked() { ui.ctx().copy_text(format!("{}\nPublisher: {}\nVersion: {}",app.name,app.publisher.as_deref().unwrap_or("Unknown"),app.version.as_deref().unwrap_or("Unknown"))); }
                 });
             });

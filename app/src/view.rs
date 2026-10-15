@@ -739,7 +739,7 @@ impl KitlaneApp {
                                                             .color(p.muted),
                                                     )
                                                     .on_hover_text(
-                                                        "No reviewed catalog association.",
+                                                        "No catalog metadata association.",
                                                     );
                                                 }
                                             });
@@ -752,7 +752,7 @@ impl KitlaneApp {
         ui.add_space(12.0);
         ui.collapsing("About availability & scan coverage", |ui| {
             caption(ui, "OS availability uses reviewed vendor evidence. CPU and OS-version compatibility are not checked yet.", p);
-            caption(ui, "Catalog matches use observed metadata and reviewed identifiers; installation still requires verification.", p);
+            caption(ui, "Matches use curated metadata or WinGet product identifiers. A match does not verify executable identity or OS availability.", p);
             for warning in &snapshot.warnings { caption(ui, warning, p); }
         });
     }

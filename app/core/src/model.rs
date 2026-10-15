@@ -62,7 +62,8 @@ pub struct InstalledApp {
     pub version: Option<String>,
     pub scope: InstallScope,
     pub source: InventorySource,
-    /// Observed bundle/Flatpak identifier. Metadata alone does not verify identity.
+    /// Observed bundle/Flatpak ID or catalog-recognized Windows uninstall identifier.
+    /// Metadata alone does not verify identity.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub native_id: Option<String>,
     /// Observed package origin; meaningful only for package-manager inventory.

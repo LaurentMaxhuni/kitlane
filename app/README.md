@@ -4,6 +4,8 @@ Native Rust desktop application using [egui/eframe](https://docs.rs/eframe/). Ve
 
 Inventory coverage: [Windows uninstall registry](docs/windows-inventory.md), [macOS application bundles](docs/macos-inventory.md), and [Linux Flatpak applications](docs/linux-inventory.md). Store/MSIX, portable software, other users, and Linux native packages are outside these adapters. macOS/Linux code has fixture and native CI build/test checks; interactive runtime validation remains pending. Catalog associations use metadata, not verified binary identity. Unknown apps remain unknown. Installation, updates, and AI suggestions are not enabled.
 
+Windows catalog matching also uses an offline WinGet index: 8,174 packages and 106,491 unambiguous uninstall identifiers. Versioned display names can match through their registration identifier. The 15 curated products retain reviewed OS availability; imported matches keep availability unknown. App details show the match source and WinGet ID. Rescan after upgrading to populate recognized Windows identifiers. See [catalog evidence and refresh instructions](docs/catalog-evidence.md).
+
 Registry size checks are not atomic: another local process can enlarge a value while it is read. See [scanner coverage and limits](docs/windows-inventory.md).
 
 Requires Rust 1.95 or newer and your platform's native linker (MSVC Build Tools on Windows). Linux builds also need D-Bus development libraries (`libdbus-1-dev` on Debian/Ubuntu); credential storage requires a running Secret Service and user session. Run from this folder:

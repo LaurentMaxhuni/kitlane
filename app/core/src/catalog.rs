@@ -1,9 +1,11 @@
-//! Reviewed metadata associations, never binary identity or installation authorization.
+//! Curated and provider metadata associations, never installation authorization.
 use std::{collections::HashSet, fmt};
 
 use serde::{Deserialize, Serialize};
 
 use crate::model::{InstalledApp, InventorySource, Platform};
+
+mod winget;
 
 const BUNDLED: &str = include_str!("../catalog/products.json");
 const MAX_CATALOG_BYTES: usize = 128 * 1024;
@@ -51,12 +53,32 @@ pub struct Product {
     pub id: String,
     pub name: String,
     pub publisher: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub winget_id: Option<String>,
+    #[serde(skip)]
+    pub association: AssociationSource,
     /// Validated in Windows, macOS, Linux order.
     pub platforms: [PlatformSupport; 3],
     match_rules: Vec<MatchRule>,
     /// Optional in schema v1 for backward compatibility with Windows-only catalogs.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     native_match_rules: Vec<NativeMatchRule>,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum AssociationSource {
+    #[default]
+    Curated,
+    WingetProductCode,
+}
+
+impl AssociationSource {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Curated => "Curated catalog metadata",
+            Self::WingetProductCode => "WinGet product identifier",
+        }
+    }
 }
 
 impl Product {
@@ -85,7 +107,7 @@ struct NativeMatchRule {
     evidence: Vec<Evidence>,
 }
 
-/// `Matched` means source metadata associated with a reviewed catalog entry.
+/// `Matched` means metadata associated with a curated or provider catalog entry.
 /// Metadata can be forged; this does not verify executable signatures or origin.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum MatchOutcome {
@@ -107,9 +129,7 @@ impl UnknownReason {
         match self {
             Self::MissingPublisher => "Unknown identity: publisher missing",
             Self::MissingNativeId => "Unknown identity: native identifier missing",
-            Self::UnrecognizedMetadata => {
-                "Unknown identity: no reviewed source metadata association"
-            }
+            Self::UnrecognizedMetadata => "Unknown identity: no catalog metadata association",
             Self::UnsupportedInventorySource => "Unknown identity: inventory source not reviewed",
             Self::InvalidMetadata => "Unknown identity: invalid inventory metadata",
         }
@@ -131,6 +151,7 @@ impl std::error::Error for CatalogError {}
 pub struct Catalog {
     schema_version: u32,
     products: Vec<Product>,
+    winget: Option<&'static winget::Index>,
 }
 
 #[derive(Deserialize)]
@@ -142,7 +163,9 @@ struct CatalogDocument {
 
 impl Catalog {
     pub fn bundled() -> Result<Self, CatalogError> {
-        Self::from_json(BUNDLED)
+        let mut catalog = Self::from_json(BUNDLED)?;
+        catalog.winget = Some(winget::bundled().map_err(CatalogError)?);
+        Ok(catalog)
     }
 
     pub(crate) fn from_json(json: &str) -> Result<Self, CatalogError> {
@@ -154,6 +177,7 @@ impl Catalog {
         let catalog = Self {
             schema_version: document.schema_version,
             products: document.products,
+            winget: None,
         };
         catalog.validate()?;
         Ok(catalog)
@@ -167,6 +191,7 @@ impl Catalog {
         let mut ids = HashSet::new();
         let mut pairs = HashSet::new();
         let mut native_ids = HashSet::new();
+        let mut winget_ids = HashSet::new();
         for product in &self.products {
             if !valid_text(&product.id, 64)
                 || !product
@@ -176,6 +201,10 @@ impl Catalog {
                 || !ids.insert(&product.id)
                 || !valid_text(&product.name, 128)
                 || !valid_text(&product.publisher, 128)
+                || product
+                    .winget_id
+                    .as_deref()
+                    .is_some_and(|id| !winget::valid_id(id) || !winget_ids.insert(id))
                 || product.match_rules.is_empty()
                 || product.match_rules.len() > 16
                 || product.native_match_rules.len() > 16
@@ -221,8 +250,8 @@ impl Catalog {
         Ok(())
     }
 
-    /// Exact, case-sensitive strings only. Version and registry ID do not prove identity.
-    /// No network, package lookup, fuzzy matching, or executable action occurs.
+    /// Exact curated metadata, then unambiguous WinGet uninstall product codes.
+    /// Registry keys use ASCII case-insensitive comparison. No network or actions.
     pub fn match_app(&self, app: &InstalledApp) -> MatchOutcome {
         if !valid_text(&app.name, 512)
             || app
@@ -267,9 +296,54 @@ impl Catalog {
                 .any(|rule| rule.name == app.name && rule.publisher == publisher)
         }) {
             Some(product) => MatchOutcome::Matched(Box::new(product.clone())),
-            None => MatchOutcome::Unknown(UnknownReason::UnrecognizedMetadata),
+            None => self.match_winget(app),
         }
     }
+
+    fn match_winget(&self, app: &InstalledApp) -> MatchOutcome {
+        let Some((id, name)) = self
+            .winget
+            .and_then(|index| index.find(app.native_id.as_deref()?))
+        else {
+            return MatchOutcome::Unknown(UnknownReason::UnrecognizedMetadata);
+        };
+        let mut product = if let Some(curated) = self
+            .products
+            .iter()
+            .find(|p| p.winget_id.as_deref() == Some(id))
+        {
+            curated.clone()
+        } else {
+            Product {
+                id: format!("winget:{id}"),
+                name: name.into(),
+                publisher: app.publisher.clone().unwrap_or_default(),
+                winget_id: Some(id.into()),
+                association: AssociationSource::WingetProductCode,
+                platforms: [Platform::Windows, Platform::Macos, Platform::Linux].map(|platform| {
+                    PlatformSupport {
+                        platform,
+                        availability: Availability::Unknown,
+                        evidence: Vec::new(),
+                        compatibility_note: "WinGet product-code association only. Official native OS availability and device compatibility have not been reviewed.".into(),
+                    }
+                }),
+                match_rules: Vec::new(),
+                native_match_rules: Vec::new(),
+            }
+        };
+        product.association = AssociationSource::WingetProductCode;
+        MatchOutcome::Matched(Box::new(product))
+    }
+}
+
+/// Share only catalog-recognized registration identifiers, never arbitrary registry keys.
+#[cfg(any(windows, test))]
+pub(crate) fn windows_native_id(key: &str) -> Option<String> {
+    if !valid_text(key, 256) {
+        return None;
+    }
+    winget::bundled().ok()?.find(key).map(|_| key.to_owned())
 }
 
 fn valid_text(value: &str, max: usize) -> bool {
@@ -393,6 +467,49 @@ mod tests {
         assert_eq!(
             npp.support(Platform::Linux).availability,
             Availability::Unavailable
+        );
+    }
+
+    #[test]
+    fn winget_product_codes_cover_versioned_apps_without_inventing_os_support() {
+        let catalog = Catalog::bundled().unwrap();
+        let mut observation = app("7-Zip 25.01 (x64)", Some("Igor Pavlov"));
+        observation.native_id = Some("7-Zip".into());
+        let MatchOutcome::Matched(product) = catalog.match_app(&observation) else {
+            panic!("WinGet's exact uninstall identifier must associate versioned names");
+        };
+        assert_eq!(product.id, "winget:7zip.7zip");
+        for platform in [Platform::Windows, Platform::Macos, Platform::Linux] {
+            assert_eq!(
+                product.support(platform).availability,
+                Availability::Unknown
+            );
+        }
+        observation.native_id = Some("7-Zip Beta".into());
+        assert!(matches!(
+            catalog.match_app(&observation),
+            MatchOutcome::Unknown(_)
+        ));
+        observation.native_id = Some("7-Zip".into());
+        observation.source = InventorySource::Manual;
+        assert!(matches!(
+            catalog.match_app(&observation),
+            MatchOutcome::Unknown(_)
+        ));
+    }
+
+    #[test]
+    fn winget_codes_reuse_curated_identity_and_availability() {
+        let catalog = Catalog::bundled().unwrap();
+        let mut observation = app("OBS Studio (different display label)", Some("OBS Project"));
+        observation.native_id = Some("OBS Studio".into());
+        let MatchOutcome::Matched(product) = catalog.match_app(&observation) else {
+            panic!("WinGet code should resolve to existing curated product");
+        };
+        assert_eq!(product.id, "obs-studio");
+        assert_eq!(
+            product.support(Platform::Macos).availability,
+            Availability::Available
         );
     }
 

@@ -122,7 +122,7 @@ pub fn build_plan(
                     let entry = known.entry(product.id.clone()).or_insert_with(|| {
                         let support = product.support(target.device.platform);
                         let (status, mut reason) = if present.contains(&product.id) {
-                            (PlanStatus::AlreadyPresent, "Reviewed catalog association already appears on target. No reinstall proposed.".into())
+                            (PlanStatus::AlreadyPresent, "Catalog metadata association already appears on target. No reinstall proposed.".into())
                         } else {
                             match support.availability {
                                 Availability::Available => (PlanStatus::ReviewRequired, format!("Official native product exists for {}. Review CPU architecture, OS version, distribution, license and trusted package mapping before installation. {}", target.device.platform.label(), support.compatibility_note)),

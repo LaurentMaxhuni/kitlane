@@ -1,5 +1,5 @@
 use kitlane_core::{
-    catalog::{Catalog, MatchOutcome},
+    catalog::{AssociationSource, Catalog, MatchOutcome},
     inventory,
     model::{DeviceInfo, Platform},
 };
@@ -18,10 +18,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .iter()
         .filter(|app| matches!(catalog.match_app(app), MatchOutcome::Matched(_)))
         .count();
+    let provider_matches = snapshot
+        .apps
+        .iter()
+        .filter(|app| {
+            matches!(catalog.match_app(app), MatchOutcome::Matched(product)
+            if product.association == AssociationSource::WingetProductCode)
+        })
+        .count();
     println!(
-        "Read-only scan: {} applications; {} catalog matches; {} coverage warnings.",
+        "Read-only scan: {} applications; {} catalog matches ({} via WinGet identifiers); {} coverage warnings.",
         snapshot.apps.len(),
         matches,
+        provider_matches,
         snapshot.warnings.len()
     );
     Ok(())

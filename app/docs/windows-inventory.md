@@ -10,6 +10,8 @@ Missing roots are reported separately from unreadable roots. Partial failures wa
 
 Deduplication requires the same hive scope, registry key, display metadata, and matching private installation evidence in opposite views: an identical uninstall command or an MSI GUID registration. Install location alone does not establish identity. Distinct scopes, keys, versions, or evidence remain distinct. IDs are UUID v5 values derived from scope, selected view, and key; display/version changes do not change IDs. The 64-bit observation supplies the merged ID. If a duplicate's 64-bit registration disappears, the surviving 32-bit ID changes. Registry paths, install locations, and uninstall commands are not emitted in snapshots or diagnostics. Commands are read only as matching evidence and never executed.
 
+Windows observations now preserve a bounded `native_id` when the uninstall subkey exactly matches an unambiguous code in the bundled WinGet index (ASCII registry case is ignored). Unrecognized subkeys remain private. This is registry metadata, not a verified MSI signature or vendor identity. Existing snapshots stay readable and require a rescan to gain these identifiers. Full registry paths, install locations and commands remain private.
+
 Validation uses pure fixture tests plus an explicitly ignored read-only local-registry integration test. Run the latter on Windows with:
 
 ```text

@@ -86,6 +86,7 @@
         }
       ],
       "id": "visual-studio-code",
+      "winget_id": "Microsoft.VisualStudioCode",
       "publisher": "Microsoft Corporation"
     },
     {
@@ -142,6 +143,7 @@
         }
       ],
       "id": "vlc-media-player",
+      "winget_id": "VideoLAN.VLC",
       "publisher": "VideoLAN",
       "native_match_rules": [
         {
@@ -233,6 +235,7 @@
         }
       ],
       "id": "notepad-plus-plus",
+      "winget_id": "Notepad++.Notepad++",
       "publisher": "Notepad++ Team"
     },
     {
@@ -289,6 +292,7 @@
         }
       ],
       "id": "brave",
+      "winget_id": "Brave.Brave",
       "publisher": "Brave Software Inc"
     },
     {
@@ -345,6 +349,7 @@
         }
       ],
       "id": "docker-desktop",
+      "winget_id": "Docker.DockerDesktop",
       "publisher": "Docker Inc."
     },
     {
@@ -422,6 +427,7 @@
         }
       ],
       "id": "firefox",
+      "winget_id": "Mozilla.Firefox",
       "publisher": "Mozilla"
     },
     {
@@ -478,6 +484,7 @@
         }
       ],
       "id": "git",
+      "winget_id": "Git.Git",
       "publisher": "The Git Development Community"
     },
     {
@@ -534,6 +541,7 @@
         }
       ],
       "id": "obs-studio",
+      "winget_id": "OBSProject.OBSStudio",
       "publisher": "OBS Project"
     },
     {
@@ -590,6 +598,7 @@
         }
       ],
       "id": "steam",
+      "winget_id": "Valve.Steam",
       "publisher": "Valve Corporation"
     },
     {
@@ -646,6 +655,7 @@
         }
       ],
       "id": "google-chrome",
+      "winget_id": "Google.Chrome",
       "publisher": "Google LLC"
     },
     {
@@ -702,6 +712,7 @@
         }
       ],
       "id": "microsoft-edge",
+      "winget_id": "Microsoft.Edge",
       "publisher": "Microsoft Corporation"
     },
     {
@@ -758,6 +769,7 @@
         }
       ],
       "id": "discord",
+      "winget_id": "Discord.Discord",
       "publisher": "Discord Inc."
     },
     {
@@ -814,6 +826,7 @@
         }
       ],
       "id": "spotify",
+      "winget_id": "Spotify.Spotify",
       "publisher": "Spotify AB"
     },
     {
@@ -870,6 +883,7 @@
         }
       ],
       "id": "obsidian",
+      "winget_id": "Obsidian.Obsidian",
       "publisher": "Obsidian"
     },
     {
@@ -926,6 +940,7 @@
         }
       ],
       "id": "github-desktop",
+      "winget_id": "GitHub.GitHubDesktop",
       "publisher": "GitHub, Inc."
     }
   ]

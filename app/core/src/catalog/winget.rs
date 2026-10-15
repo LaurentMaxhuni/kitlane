@@ -1,0 +1,136 @@
+//! Offline, generated WinGet metadata. Never installation authorization.
+use std::{collections::HashSet, sync::OnceLock};
+
+use serde::Deserialize;
+
+use super::{valid_date, valid_text};
+
+const SOURCE_URL: &str = "https://cdn.winget.microsoft.com/cache/source2.msix";
+const BUNDLED: &str = include_str!("../../catalog/winget-index.json");
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct Index {
+    schema_version: u32,
+    source_url: String,
+    source_sha256: String,
+    source_updated_on: String,
+    generated_on: String,
+    packages: Vec<(String, String)>,
+    codes: Vec<(String, usize)>,
+}
+
+impl Index {
+    fn from_json(json: &str) -> Result<Self, String> {
+        if json.len() > 32 * 1024 * 1024 {
+            return Err("WinGet index byte limit exceeded".into());
+        }
+        let index: Self = serde_json::from_str(json).map_err(|error| error.to_string())?;
+        if index.schema_version != 1
+            || index.source_url != SOURCE_URL
+            || index.source_sha256.len() != 64
+            || !index.source_sha256.bytes().all(|c| c.is_ascii_hexdigit())
+            || !valid_date(&index.source_updated_on)
+            || !valid_date(&index.generated_on)
+            || index.packages.is_empty()
+            || index.packages.len() > 100_000
+            || index.codes.is_empty()
+            || index.codes.len() > 500_000
+        {
+            return Err("Invalid WinGet index metadata or limits".into());
+        }
+        let mut ids = HashSet::new();
+        for (id, name) in &index.packages {
+            if !valid_id(id) || !valid_text(name, 512) || !ids.insert(id) {
+                return Err("Invalid or duplicate WinGet package".into());
+            }
+        }
+        for (position, (code, package)) in index.codes.iter().enumerate() {
+            if !valid_text(code, 256)
+                || !code.is_ascii()
+                || code.bytes().any(|c| c.is_ascii_uppercase())
+                || *package >= index.packages.len()
+                || (position > 0 && index.codes[position - 1].0 >= *code)
+            {
+                return Err("Invalid, duplicate or unsorted WinGet product code".into());
+            }
+        }
+        Ok(index)
+    }
+
+    pub(super) fn find(&self, code: &str) -> Option<(&str, &str)> {
+        let code = code.to_ascii_lowercase();
+        let position = self
+            .codes
+            .binary_search_by(|(key, _)| key.cmp(&code))
+            .ok()?;
+        let (id, name) = &self.packages[self.codes[position].1];
+        Some((id, name))
+    }
+}
+
+pub(super) fn valid_id(id: &str) -> bool {
+    valid_text(id, 256)
+        && id
+            .bytes()
+            .all(|c| c.is_ascii_alphanumeric() || b"._-+".contains(&c))
+}
+
+pub(super) fn bundled() -> Result<&'static Index, String> {
+    static INDEX: OnceLock<Result<Index, String>> = OnceLock::new();
+    INDEX
+        .get_or_init(|| Index::from_json(BUNDLED))
+        .as_ref()
+        .map_err(Clone::clone)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn fixture() -> serde_json::Value {
+        serde_json::json!({
+            "schema_version": 1, "source_url": SOURCE_URL,
+            "source_sha256": "0".repeat(64), "source_updated_on": "2026-10-15",
+            "generated_on": "2026-10-15", "packages": [["Example.App", "Example"]],
+            "codes": [["example_is1", 0]]
+        })
+    }
+
+    #[test]
+    fn exact_codes_allow_registry_case_but_never_suffixes_or_partial_names() {
+        let index = Index::from_json(&fixture().to_string()).unwrap();
+        assert_eq!(index.find("Example_is1"), Some(("Example.App", "Example")));
+        assert_eq!(index.find("example_is1 Beta"), None);
+        assert_eq!(index.find("example"), None);
+    }
+
+    #[test]
+    fn rejects_ambiguity_bad_indices_ordering_and_untrusted_metadata() {
+        for codes in [
+            serde_json::json!([["example_is1", 0], ["example_is1", 0]]),
+            serde_json::json!([["z", 0], ["a", 0]]),
+            serde_json::json!([["example_is1", 1]]),
+            serde_json::json!([["Example_is1", 0]]),
+            serde_json::json!([["bad\ncode", 0]]),
+        ] {
+            let mut json = fixture();
+            json["codes"] = codes;
+            assert!(Index::from_json(&json.to_string()).is_err());
+        }
+        for (field, value) in [
+            ("schema_version", serde_json::json!(2)),
+            (
+                "source_url",
+                serde_json::json!("https://other.example/index"),
+            ),
+            ("source_sha256", serde_json::json!("not-a-hash")),
+            ("generated_on", serde_json::json!("2026-02-30")),
+            ("installer_command", serde_json::json!("do not execute")),
+        ] {
+            let mut json = fixture();
+            json[field] = value;
+            assert!(Index::from_json(&json.to_string()).is_err());
+        }
+    }
+}

@@ -56,6 +56,7 @@ Source: "..\..\design-system\assets\fonts\Sora-OFL.txt"; DestDir: "{app}\license
 Source: "..\assets\programs\NOTICE.md"; DestDir: "{app}\licenses"; DestName: "Program-Logos.md"; Flags: ignoreversion
 Source: "..\..\design-system\assets\ui-icons\LICENSE"; DestDir: "{app}\licenses"; DestName: "Lucide-ISC.txt"; Flags: ignoreversion
 Source: "licenses\Pelite-MIT.txt"; DestDir: "{app}\licenses"; Flags: ignoreversion
+Source: "..\core\catalog\winget-LICENSE.txt"; DestDir: "{app}\licenses"; Flags: ignoreversion
 
 [Icons]
 Name: "{autoprograms}\Kitlane"; Filename: "{app}\kitlane.exe"; IconFilename: "{app}\kitlane.ico"

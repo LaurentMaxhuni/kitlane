@@ -258,6 +258,7 @@ mod records {
                 let identity = format!("kitlane:windows-uninstall:{scope}:{view}:{key}");
                 let id =
                     uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, identity.as_bytes()).to_string();
+                let native_id = crate::catalog::windows_native_id(&item.key);
                 if item.icon.is_some() || item.location.is_some() || item.uninstall.is_some() {
                     icons.push(LocalIconSource {
                         app_id: id.clone(),
@@ -274,7 +275,7 @@ mod records {
                     version: item.version,
                     scope: item.scope,
                     source: InventorySource::WindowsRegistry,
-                    native_id: None,
+                    native_id,
                     origin: None,
                 });
             }
@@ -503,6 +504,16 @@ mod records {
                 applications(vec![no_evidence, other_view]).unwrap().len(),
                 2
             );
+        }
+
+        #[test]
+        fn native_identifiers_expose_only_catalog_recognized_registration_keys() {
+            let recognized =
+                applications(vec![fixture("7-Zip", View::X64, InstallScope::User)]).unwrap();
+            assert_eq!(recognized[0].native_id.as_deref(), Some("7-Zip"));
+            let private =
+                applications(vec![fixture("Private-key", View::X64, InstallScope::User)]).unwrap();
+            assert_eq!(private[0].native_id, None);
         }
 
         #[test]
