@@ -751,20 +751,30 @@ mod tests {
                     let mut output = ctx.run_ui(input(frame_time), |ui| {
                         app.content(ui);
                     });
-                    for _ in 0..8 {
+                    let mut idle_frames = 0;
+                    for _ in 0..100 {
                         output.textures_delta.clear();
                         // egui's animation clock must never run backwards between pages.
                         frame_time += 1.0;
                         output = ctx.run_ui(input(frame_time), |ui| {
                             app.content(ui);
                         });
+                        if output.viewport_output[&egui::ViewportId::ROOT].repaint_delay
+                            > std::time::Duration::ZERO
+                        {
+                            idle_frames += 1;
+                            if idle_frames == 4 {
+                                break;
+                            }
+                        } else {
+                            idle_frames = 0;
+                        }
+                        // Raster image decoding runs on background threads; let it finish.
+                        std::thread::sleep(std::time::Duration::from_millis(5));
                     }
                     output.textures_delta.clear();
                     assert!(!output.shapes.is_empty());
-                    assert!(
-                        output.viewport_output[&egui::ViewportId::ROOT].repaint_delay
-                            > std::time::Duration::ZERO
-                    );
+                    assert_eq!(idle_frames, 4, "Repaint causes: {:?}", ctx.repaint_causes());
                 }
             }
         }
