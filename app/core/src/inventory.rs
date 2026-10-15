@@ -737,7 +737,7 @@ mod windows {
     }
 }
 
-#[cfg(all(test, not(windows)))]
+#[cfg(all(test, not(any(windows, target_os = "macos", target_os = "linux"))))]
 mod unsupported_tests {
     use super::*;
     use crate::model::Platform;

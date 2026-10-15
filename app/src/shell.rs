@@ -697,6 +697,7 @@ mod tests {
     fn all_pages_render_in_both_themes_without_continuous_repaint() {
         for width in [480.0, 900.0, 1440.0] {
             let ctx = egui::Context::default();
+            let mut frame_time = 0.0;
             egui_extras::install_image_loaders(&ctx);
             crate::theme::install_fonts(&ctx);
             for dark in [false, true] {
@@ -739,21 +740,22 @@ mod tests {
                     app.peers = vec![peer];
                     app.rebuild_plans();
                     assert_eq!(app.plans.len(), 1);
-                    let input = || egui::RawInput {
+                    let input = |time| egui::RawInput {
+                        time: Some(time),
                         screen_rect: Some(egui::Rect::from_min_size(
                             egui::Pos2::ZERO,
                             egui::vec2(width, 720.0),
                         )),
                         ..Default::default()
                     };
-                    let mut output = ctx.run_ui(input(), |ui| {
+                    let mut output = ctx.run_ui(input(frame_time), |ui| {
                         app.content(ui);
                     });
-                    for frame in 0..8 {
+                    for _ in 0..8 {
                         output.textures_delta.clear();
-                        let mut timed_input = input();
-                        timed_input.time = Some(frame as f64 + 1.0);
-                        output = ctx.run_ui(timed_input, |ui| {
+                        // egui's animation clock must never run backwards between pages.
+                        frame_time += 1.0;
+                        output = ctx.run_ui(input(frame_time), |ui| {
                             app.content(ui);
                         });
                     }
