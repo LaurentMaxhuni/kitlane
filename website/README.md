@@ -46,3 +46,7 @@ app/target/debug/ui-preview.exe --page devices --theme light --state normal --wi
 ```
 
 The landing-page preview switch, mobile navigation, and native FAQ disclosures support keyboard use. Reduced motion disables smooth scrolling and transitions. Main navigation and FAQ content remain usable with JavaScript disabled.
+
+## Appearance
+
+Both pages follow the system color preference until visitors choose a theme using the header toggle. The choice is saved locally and applied before rendering. With JavaScript disabled, the site follows the system preference and hides the toggle. Blocked storage still permits switching for the current page.
