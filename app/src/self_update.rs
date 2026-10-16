@@ -540,6 +540,7 @@ pub fn install(staged: &StagedUpdate) -> Result<u32, String> {
             "/NORESTART",
             "/NOCLOSEAPPLICATIONS",
             "/NORESTARTAPPLICATIONS",
+            "/RESTARTMAINTENANCE=1",
         ])
         .arg(format!("/DIR={}", target.display()))
         .current_dir(&target);

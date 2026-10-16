@@ -69,8 +69,14 @@ Name: "{autodesktop}\Kitlane"; Filename: "{app}\kitlane.exe"; IconFilename: "{ap
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: none; ValueName: "KitlaneMaintenance"; Flags: dontcreatekey uninsdeletevalue
 
 [Run]
-Filename: "{app}\kitlane-agent.exe"; Parameters: "--background"; Flags: nowait runhidden
-Filename: "{app}\kitlane.exe"; Description: "Launch Kitlane and set up your workspace"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\kitlane-agent.exe"; Parameters: "--background"; Flags: nowait runhidden; Check: RestartMaintenanceRequested
+Filename: "{app}\kitlane.exe"; Description: "Launch Kitlane and set up your workspace"; Flags: nowait postinstall skipifsilent unchecked
+
+[Code]
+function RestartMaintenanceRequested: Boolean;
+begin
+  Result := ExpandConstant('{param:RESTARTMAINTENANCE|0}') = '1';
+end;
 
 [Messages]
 WelcomeLabel1=Your apps. A clearer workspace.
