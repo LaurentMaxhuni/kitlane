@@ -26,11 +26,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             if product.association == AssociationSource::WingetProductCode)
         })
         .count();
+    let metadata_matches = snapshot
+        .apps
+        .iter()
+        .filter(|app| {
+            matches!(catalog.match_app(app), MatchOutcome::Matched(product)
+            if product.association == AssociationSource::WingetMetadata)
+        })
+        .count();
     println!(
-        "Read-only scan: {} applications; {} catalog matches ({} via WinGet identifiers); {} coverage warnings.",
+        "Read-only scan: {} applications; {} catalog matches ({} via WinGet identifiers, {} via WinGet name/publisher metadata); {} coverage warnings.",
         snapshot.apps.len(),
         matches,
         provider_matches,
+        metadata_matches,
         snapshot.warnings.len()
     );
     Ok(())
