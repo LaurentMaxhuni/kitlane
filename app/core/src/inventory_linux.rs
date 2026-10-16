@@ -118,7 +118,9 @@ mod records {
                 version,
                 scope,
                 source: InventorySource::Flatpak,
-                native_id: Some(application),
+                // Preserve branch/architecture for downstream identity matching.
+                // Legacy ID-only snapshots cannot distinguish stable from beta.
+                native_id: (reference.len() <= 256).then_some(reference),
                 origin,
             };
             if apps.get(&id).is_some_and(|existing| existing != &app) {
@@ -357,6 +359,34 @@ mod tests {
     use std::io::Cursor;
 
     const ROW: &str = "Example\torg.example.App\t1.2\tflathub\torg.example.App/x86_64/stable\n";
+
+    #[test]
+    fn stable_and_beta_refs_never_share_catalog_identity() {
+        use crate::catalog::{Catalog, MatchOutcome};
+        let catalog = Catalog::bundled().unwrap();
+        let stable = ROW.replace("org.example.App", "org.mozilla.firefox");
+        let stable_app = parse(stable.as_bytes(), InstallScope::User)
+            .unwrap()
+            .remove(0);
+        assert!(matches!(
+            catalog.match_app(&stable_app),
+            MatchOutcome::Matched(_)
+        ));
+        let beta = stable.replace("stable", "beta");
+        let beta_app = parse(beta.as_bytes(), InstallScope::User)
+            .unwrap()
+            .remove(0);
+        assert!(matches!(
+            catalog.match_app(&beta_app),
+            MatchOutcome::Unknown(_)
+        ));
+        let mut legacy = stable_app;
+        legacy.native_id = Some("org.mozilla.firefox".into());
+        assert!(matches!(
+            catalog.match_app(&legacy),
+            MatchOutcome::Unknown(_)
+        ));
+    }
     fn device() -> DeviceInfo {
         DeviceInfo {
             id: uuid::Uuid::new_v4().to_string(),
@@ -370,7 +400,10 @@ mod tests {
     fn preserves_observed_metadata_without_publisher_claims() {
         let apps = parse(ROW.as_bytes(), InstallScope::User).unwrap();
         assert_eq!(apps[0].name, "Example");
-        assert_eq!(apps[0].native_id.as_deref(), Some("org.example.App"));
+        assert_eq!(
+            apps[0].native_id.as_deref(),
+            Some("org.example.App/x86_64/stable")
+        );
         assert_eq!(apps[0].origin.as_deref(), Some("flathub"));
         assert_eq!(apps[0].version.as_deref(), Some("1.2"));
         assert_eq!(apps[0].publisher, None);

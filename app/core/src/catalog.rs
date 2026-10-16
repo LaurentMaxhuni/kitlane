@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::model::{InstalledApp, InventorySource, Platform};
 
+mod providers;
 mod winget;
 
 const BUNDLED: &str = include_str!("../catalog/products.json");
@@ -40,7 +41,8 @@ pub struct Evidence {
 #[serde(deny_unknown_fields)]
 pub struct PlatformSupport {
     pub platform: Platform,
-    /// Availability of the official native product on this OS family only.
+    /// Reviewed vendor availability or a listed package for this OS family.
+    /// Package listings may be maintained by the community, not the vendor.
     pub availability: Availability,
     pub evidence: Vec<Evidence>,
     /// Requirements are informational. No target device compatibility is evaluated.
@@ -56,6 +58,8 @@ pub struct Product {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub winget_id: Option<String>,
     #[serde(skip)]
+    pub packages: Vec<PackageReference>,
+    #[serde(skip)]
     pub association: AssociationSource,
     /// Validated in Windows, macOS, Linux order.
     pub platforms: [PlatformSupport; 3],
@@ -70,6 +74,17 @@ pub enum AssociationSource {
     #[default]
     Curated,
     WingetProductCode,
+    WingetMetadata,
+    HomebrewBundle,
+    FlathubId,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PackageReference {
+    pub manager: String,
+    pub id: String,
+    pub url: String,
 }
 
 impl AssociationSource {
@@ -77,6 +92,9 @@ impl AssociationSource {
         match self {
             Self::Curated => "Curated catalog metadata",
             Self::WingetProductCode => "WinGet product identifier",
+            Self::WingetMetadata => "WinGet name and publisher metadata",
+            Self::HomebrewBundle => "Homebrew bundle identifier",
+            Self::FlathubId => "Flathub application identifier",
         }
     }
 }
@@ -152,6 +170,7 @@ pub struct Catalog {
     schema_version: u32,
     products: Vec<Product>,
     winget: Option<&'static winget::Index>,
+    providers: Option<&'static providers::Index>,
 }
 
 #[derive(Deserialize)]
@@ -165,6 +184,12 @@ impl Catalog {
     pub fn bundled() -> Result<Self, CatalogError> {
         let mut catalog = Self::from_json(BUNDLED)?;
         catalog.winget = Some(winget::bundled().map_err(CatalogError)?);
+        catalog.providers = Some(providers::bundled().map_err(CatalogError)?);
+        catalog
+            .providers
+            .unwrap()
+            .validate_links(&catalog.products, catalog.winget.unwrap())
+            .map_err(CatalogError)?;
         Ok(catalog)
     }
 
@@ -178,6 +203,7 @@ impl Catalog {
             schema_version: document.schema_version,
             products: document.products,
             winget: None,
+            providers: None,
         };
         catalog.validate()?;
         Ok(catalog)
@@ -250,9 +276,35 @@ impl Catalog {
         Ok(())
     }
 
-    /// Exact curated metadata, then unambiguous WinGet uninstall product codes.
+    /// Exact curated metadata, then unambiguous package-manager identifiers.
     /// Registry keys use ASCII case-insensitive comparison. No network or actions.
     pub fn match_app(&self, app: &InstalledApp) -> MatchOutcome {
+        let mut outcome = self.match_metadata(app);
+        if let MatchOutcome::Matched(product) = &mut outcome {
+            if let Some(index) = self.providers {
+                index.enrich(product);
+            }
+            if let Some(id) = &product.winget_id {
+                let url = winget::package_url(id);
+                product.packages.push(PackageReference {
+                    manager: "WinGet".into(),
+                    id: id.clone(),
+                    url: url.clone(),
+                });
+                let support = &mut product.platforms[0];
+                if support.availability == Availability::Unknown
+                    && let Some(index) = self.winget
+                {
+                    support.availability = Availability::Available;
+                    support.evidence.push(Evidence { url, reviewed_on: index.generated_on().to_owned(), summary: "Exact package listed in Microsoft's WinGet community catalog. This does not verify the installed binary or target requirements.".into() });
+                    support.compatibility_note = "WinGet package exists for Windows. Review architecture, Windows release, publisher and installer requirements before use.".into();
+                }
+            }
+        }
+        outcome
+    }
+
+    fn match_metadata(&self, app: &InstalledApp) -> MatchOutcome {
         if !valid_text(&app.name, 512)
             || app
                 .publisher
@@ -280,14 +332,20 @@ impl Catalog {
                     .any(|rule| rule.source == app.source && rule.native_id == native_id)
             }) {
                 Some(product) => MatchOutcome::Matched(Box::new(product.clone())),
-                None => MatchOutcome::Unknown(UnknownReason::UnrecognizedMetadata),
+                None => self.match_provider(app),
             };
+        }
+        if app.source == InventorySource::Flatpak {
+            return self.match_provider(app);
         }
         if app.source != InventorySource::WindowsRegistry {
             return MatchOutcome::Unknown(UnknownReason::UnsupportedInventorySource);
         }
         let Some(publisher) = app.publisher.as_deref() else {
-            return MatchOutcome::Unknown(UnknownReason::MissingPublisher);
+            return match self.match_winget(app) {
+                matched @ MatchOutcome::Matched(_) => matched,
+                MatchOutcome::Unknown(_) => MatchOutcome::Unknown(UnknownReason::MissingPublisher),
+            };
         };
         match self.products.iter().find(|product| {
             product
@@ -301,10 +359,18 @@ impl Catalog {
     }
 
     fn match_winget(&self, app: &InstalledApp) -> MatchOutcome {
-        let Some((id, name)) = self
+        let by_code = self
             .winget
-            .and_then(|index| index.find(app.native_id.as_deref()?))
-        else {
+            .and_then(|index| index.find(app.native_id.as_deref()?));
+        let association = if by_code.is_some() {
+            AssociationSource::WingetProductCode
+        } else {
+            AssociationSource::WingetMetadata
+        };
+        let Some((id, name)) = by_code.or_else(|| {
+            self.winget
+                .and_then(|index| index.find_metadata(&app.name, app.publisher.as_deref()?))
+        }) else {
             return MatchOutcome::Unknown(UnknownReason::UnrecognizedMetadata);
         };
         let mut product = if let Some(curated) = self
@@ -317,22 +383,57 @@ impl Catalog {
             Product {
                 id: format!("winget:{id}"),
                 name: name.into(),
-                publisher: app.publisher.clone().unwrap_or_default(),
+                publisher: app.publisher.clone().unwrap_or_else(|| "Publisher unverified".into()),
                 winget_id: Some(id.into()),
+                packages: Vec::new(),
                 association: AssociationSource::WingetProductCode,
                 platforms: [Platform::Windows, Platform::Macos, Platform::Linux].map(|platform| {
                     PlatformSupport {
                         platform,
                         availability: Availability::Unknown,
                         evidence: Vec::new(),
-                        compatibility_note: "WinGet product-code association only. Official native OS availability and device compatibility have not been reviewed.".into(),
+                        compatibility_note: "WinGet metadata association only. No evidence for this OS family or device requirements.".into(),
                     }
                 }),
                 match_rules: Vec::new(),
                 native_match_rules: Vec::new(),
             }
         };
-        product.association = AssociationSource::WingetProductCode;
+        product.association = association;
+        MatchOutcome::Matched(Box::new(product))
+    }
+
+    fn match_provider(&self, app: &InstalledApp) -> MatchOutcome {
+        let Some(id) = app.native_id.as_deref() else {
+            return MatchOutcome::Unknown(UnknownReason::MissingNativeId);
+        };
+        let id = if app.source == InventorySource::Flatpak {
+            let parts: Vec<_> = id.split('/').collect();
+            if parts.len() != 3 || parts[2] != "stable" || !winget::valid_id(parts[1]) {
+                return MatchOutcome::Unknown(UnknownReason::UnrecognizedMetadata);
+            }
+            parts[0]
+        } else {
+            id
+        };
+        let Some(package) = self.providers.and_then(|index| index.find(app.source, id)) else {
+            return MatchOutcome::Unknown(UnknownReason::UnrecognizedMetadata);
+        };
+        let mut product = self.products.iter().find(|product| product.id == package.canonical_id).cloned().unwrap_or_else(|| Product {
+            id: package.canonical_id.clone(), name: package.name.clone(),
+            publisher: app.publisher.clone().unwrap_or_else(|| "Publisher unverified".into()),
+            winget_id: package.canonical_id.strip_prefix("winget:").map(str::to_owned),
+            packages: Vec::new(), association: AssociationSource::Curated,
+            platforms: [Platform::Windows, Platform::Macos, Platform::Linux].map(|platform| PlatformSupport {
+                platform, availability: Availability::Unknown, evidence: Vec::new(),
+                compatibility_note: "No package or vendor evidence for this OS. Absence does not establish incompatibility.".into(),
+            }), match_rules: Vec::new(), native_match_rules: Vec::new(),
+        });
+        product.association = if app.source == InventorySource::MacosBundle {
+            AssociationSource::HomebrewBundle
+        } else {
+            AssociationSource::FlathubId
+        };
         MatchOutcome::Matched(Box::new(product))
     }
 }
@@ -479,7 +580,11 @@ mod tests {
             panic!("WinGet's exact uninstall identifier must associate versioned names");
         };
         assert_eq!(product.id, "winget:7zip.7zip");
-        for platform in [Platform::Windows, Platform::Macos, Platform::Linux] {
+        assert_eq!(
+            product.support(Platform::Windows).availability,
+            Availability::Available
+        );
+        for platform in [Platform::Macos, Platform::Linux] {
             assert_eq!(
                 product.support(platform).availability,
                 Availability::Unknown
@@ -514,6 +619,126 @@ mod tests {
     }
 
     #[test]
+    fn package_managers_resolve_native_ids_to_the_same_cross_platform_product() {
+        let catalog = Catalog::bundled().unwrap();
+        for (source, native_id, id) in [
+            (
+                InventorySource::MacosBundle,
+                "com.microsoft.VSCode",
+                "visual-studio-code",
+            ),
+            (
+                InventorySource::Flatpak,
+                "com.visualstudio.code/x86_64/stable",
+                "visual-studio-code",
+            ),
+            (
+                InventorySource::Flatpak,
+                "org.videolan.VLC/x86_64/stable",
+                "vlc-media-player",
+            ),
+        ] {
+            let mut observation = app("Observed application label", None);
+            observation.source = source;
+            observation.native_id = Some(native_id.into());
+            let MatchOutcome::Matched(product) = catalog.match_app(&observation) else {
+                panic!("provider metadata must recognize {native_id}");
+            };
+            assert_eq!(product.id, id);
+            assert_eq!(
+                product.support(Platform::Windows).availability,
+                Availability::Available
+            );
+        }
+    }
+
+    #[test]
+    fn provider_only_apps_have_evidence_without_inventing_other_os_support() {
+        let catalog = Catalog::bundled().unwrap();
+        let mut observation = app("GNOME Calculator", None);
+        observation.source = InventorySource::Flatpak;
+        observation.native_id = Some("org.gnome.Calculator/x86_64/stable".into());
+        let MatchOutcome::Matched(product) = catalog.match_app(&observation) else {
+            panic!("Flathub application must be recognized");
+        };
+        assert_eq!(
+            product.support(Platform::Linux).availability,
+            Availability::Available
+        );
+        assert!(!product.support(Platform::Linux).evidence.is_empty());
+        assert_eq!(
+            product.support(Platform::Windows).availability,
+            Availability::Unknown
+        );
+        assert_eq!(
+            product.support(Platform::Macos).availability,
+            Availability::Unknown
+        );
+        observation.native_id = Some("org.gnome.Calculator.beta".into());
+        assert!(matches!(
+            catalog.match_app(&observation),
+            MatchOutcome::Unknown(_)
+        ));
+    }
+
+    #[test]
+    fn windows_metadata_cross_references_packages_and_keeps_editions_separate() {
+        let catalog = Catalog::bundled().unwrap();
+        let MatchOutcome::Matched(bitwarden) =
+            catalog.match_app(&app("Bitwarden", Some("Bitwarden Inc.")))
+        else {
+            panic!("WinGet name and publisher must recognize Bitwarden without an uninstall code");
+        };
+        assert_eq!(bitwarden.id, "winget:Bitwarden.Bitwarden");
+        assert_eq!(bitwarden.association, AssociationSource::WingetMetadata);
+        assert!(
+            bitwarden
+                .packages
+                .iter()
+                .any(|p| p.manager == "Homebrew" && p.id == "bitwarden")
+        );
+        assert!(
+            bitwarden
+                .packages
+                .iter()
+                .any(|p| p.manager == "Flathub" && p.id == "com.bitwarden.desktop")
+        );
+        for platform in [Platform::Windows, Platform::Macos, Platform::Linux] {
+            assert_eq!(
+                bitwarden.support(platform).availability,
+                Availability::Available
+            );
+        }
+        let mut linux = app("Local Bitwarden label", None);
+        linux.source = InventorySource::Flatpak;
+        linux.native_id = Some("com.bitwarden.desktop/x86_64/stable".into());
+        let MatchOutcome::Matched(counterpart) = catalog.match_app(&linux) else {
+            panic!("Flatpak counterpart");
+        };
+        assert_eq!(counterpart.id, bitwarden.id);
+        let MatchOutcome::Matched(insiders) = catalog.match_app(&app(
+            "Microsoft Visual Studio Code Insiders",
+            Some("Microsoft Corporation"),
+        )) else {
+            panic!("Insiders should have its own package identity");
+        };
+        assert_eq!(insiders.id, "winget:Microsoft.VisualStudioCode.Insiders");
+        assert_eq!(
+            insiders.support(Platform::Linux).availability,
+            Availability::Unknown
+        );
+        linux.native_id = Some("io.github.shiftey.Desktop/x86_64/stable".into());
+        let MatchOutcome::Matched(fork) = catalog.match_app(&linux) else {
+            panic!("Separate community package");
+        };
+        assert_ne!(fork.id, "github-desktop");
+        assert_eq!(
+            fork.support(Platform::Windows).availability,
+            Availability::Unknown
+        );
+    }
+
+    #[test]
     fn common_windows_apps_match_without_accepting_repackages_or_other_channels() {
         let catalog = Catalog::bundled().unwrap();
         // Representative uninstall metadata, including Firefox's literal architecture/locale.
@@ -540,10 +765,14 @@ mod tests {
                 catalog.match_app(&app(name, Some("Unreviewed publisher"))),
                 MatchOutcome::Unknown(UnknownReason::UnrecognizedMetadata)
             );
-            assert_eq!(
-                catalog.match_app(&app(&format!("{name} Beta"), Some(publisher))),
-                MatchOutcome::Unknown(UnknownReason::UnrecognizedMetadata)
-            );
+            if let MatchOutcome::Matched(beta) =
+                catalog.match_app(&app(&format!("{name} Beta"), Some(publisher)))
+            {
+                assert_ne!(
+                    beta.id, id,
+                    "Beta must never use the stable product identity"
+                );
+            }
         }
         let MatchOutcome::Matched(desktop) =
             catalog.match_app(&app("GitHub Desktop", Some("GitHub, Inc.")))
@@ -562,10 +791,12 @@ mod tests {
             ("Microsoft Edge WebView2 Runtime", "Microsoft Corporation"),
             ("GitHub Desktop Deployment Tool", "GitHub, Inc."),
         ] {
-            assert_eq!(
-                catalog.match_app(&app(name, Some(publisher))),
-                MatchOutcome::Unknown(UnknownReason::UnrecognizedMetadata)
-            );
+            if let MatchOutcome::Matched(other) = catalog.match_app(&app(name, Some(publisher))) {
+                assert!(
+                    !catalog.products.iter().any(|stable| stable.id == other.id),
+                    "A separate edition or maintenance component must not use a stable product identity"
+                );
+            }
         }
     }
 
@@ -580,13 +811,8 @@ mod tests {
             ("VLC media player", "Unknown repack"),
             ("VLC", "VideoLAN"),
             ("VLC media player Beta", "VideoLAN"),
-            ("vlc media player", "VideoLAN"),
             ("VSCodium", "Microsoft Corporation"),
             ("Code - OSS", "Microsoft Corporation"),
-            (
-                "Microsoft Visual Studio Code Insiders",
-                "Microsoft Corporation",
-            ),
             ("Notepad++ Pro", "Notepad++ Team"),
             ("Notepad Next", "Notepad++ Team"),
             ("Notepad++ (x64)", "Notepad++ team (MSI installer)"),
@@ -602,7 +828,11 @@ mod tests {
             observation.source = source;
             assert_eq!(
                 catalog.match_app(&observation),
-                MatchOutcome::Unknown(UnknownReason::UnsupportedInventorySource)
+                MatchOutcome::Unknown(if source == InventorySource::Manual {
+                    UnknownReason::UnsupportedInventorySource
+                } else {
+                    UnknownReason::MissingNativeId
+                })
             );
         }
         assert_eq!(
@@ -647,8 +877,6 @@ mod tests {
         for id in [
             "org.videolan.VLC",
             "org.videolan.vlc.beta",
-            "com.microsoft.VSCode",
-            "com.microsoft.VSCodeInsiders",
             "com.visualstudio.code.oss",
         ] {
             native.native_id = Some(id.into());

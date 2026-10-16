@@ -125,7 +125,7 @@ pub fn build_plan(
                             (PlanStatus::AlreadyPresent, "Catalog metadata association already appears on target. No reinstall proposed.".into())
                         } else {
                             match support.availability {
-                                Availability::Available => (PlanStatus::ReviewRequired, format!("Official native product exists for {}. Review CPU architecture, OS version, distribution, license and trusted package mapping before installation. {}", target.device.platform.label(), support.compatibility_note)),
+                                Availability::Available => (PlanStatus::ReviewRequired, format!("Vendor or package-manager evidence exists for {}. Review CPU architecture, OS version, distribution, license and trusted package mapping before installation. {}", target.device.platform.label(), support.compatibility_note)),
                                 Availability::Unavailable => (PlanStatus::Unavailable, format!("Reviewed evidence establishes no official native counterpart for {}. {}", target.device.platform.label(), support.compatibility_note)),
                                 Availability::Unknown => (PlanStatus::Unknown, "Official native availability lacks reviewed evidence for target OS family.".into()),
                             }
@@ -257,6 +257,26 @@ mod tests {
     }
 
     #[test]
+    fn provider_counterparts_are_already_present_across_windows_and_linux() {
+        let catalog = Catalog::bundled().unwrap();
+        let windows = windows_app("windows-bitwarden", "Bitwarden", "Bitwarden Inc.");
+        let mut linux = windows.clone();
+        linux.id = "linux-bitwarden".into();
+        linux.source = InventorySource::Flatpak;
+        linux.publisher = None;
+        linux.native_id = Some("com.bitwarden.desktop/x86_64/stable".into());
+        let target = snapshot(1, Platform::Linux, vec![linux]);
+        let peer = snapshot(2, Platform::Windows, vec![windows]);
+        let plan = build_plan(&catalog, &target, &[peer]).unwrap();
+        assert_eq!(plan.len(), 1);
+        assert_eq!(
+            plan[0].product_id.as_deref(),
+            Some("winget:Bitwarden.Bitwarden")
+        );
+        assert_eq!(plan[0].status, PlanStatus::AlreadyPresent);
+    }
+
+    #[test]
     fn same_names_never_merge_unknown_products_or_prove_target_absence() {
         let catalog = Catalog::bundled().unwrap();
         let unknown = windows_app("unknown", "VLC media player", "Repack vendor");
@@ -337,16 +357,25 @@ mod tests {
     }
 
     #[test]
-    fn wrong_platform_source_and_flatpak_alias_remain_unknown() {
+    fn wrong_platform_source_stays_unknown_while_flatpak_ids_are_cross_referenced() {
         let catalog = Catalog::bundled().unwrap();
         let target = snapshot(1, Platform::Windows, vec![]);
         let mut flatpak = vlc();
         flatpak.id = "flatpak-vlc".into();
         flatpak.source = InventorySource::Flatpak;
-        flatpak.native_id = Some("org.videolan.VLC".into());
+        flatpak.native_id = Some("org.videolan.VLC/x86_64/stable".into());
         flatpak.origin = Some("flathub".into());
         let peer = snapshot(2, Platform::Linux, vec![vlc(), flatpak]);
         let plan = build_plan(&catalog, &target, &[peer]).unwrap();
-        assert!(plan.iter().all(|entry| entry.status == PlanStatus::Unknown));
+        assert_eq!(
+            plan.iter()
+                .filter(|entry| entry.status == PlanStatus::Unknown)
+                .count(),
+            1
+        );
+        assert!(plan.iter().any(
+            |entry| entry.product_id.as_deref() == Some("vlc-media-player")
+                && entry.status == PlanStatus::ReviewRequired
+        ));
     }
 }

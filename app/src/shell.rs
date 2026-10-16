@@ -617,16 +617,16 @@ mod tests {
         let mut app = KitlaneApp::preview(0, false, "normal");
         app.library_filter = LibraryFilter::Known;
         app.filter_rows();
-        assert_eq!(app.rows.len(), 4); // Spotify now has a reviewed catalog association.
+        assert_eq!(app.rows.len(), 5); // WinGet metadata now recognizes Figma too.
         app.library_filter = LibraryFilter::Unknown;
         app.filter_rows();
-        assert_eq!(app.rows.len(), 3);
+        assert_eq!(app.rows.len(), 2);
         app.query = "figma".into();
         app.filter_rows();
-        assert_eq!(app.rows.len(), 1);
+        assert!(app.rows.is_empty());
         app.library_filter = LibraryFilter::Known;
         app.filter_rows();
-        assert!(app.rows.is_empty());
+        assert_eq!(app.rows.len(), 1);
     }
 
     #[test]
