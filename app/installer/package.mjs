@@ -35,6 +35,8 @@ function licenses(destination) {
     ['app/assets/programs/NOTICE.md', 'Program-Logos.md'],
     ['app/installer/licenses/Pelite-MIT.txt', 'Pelite-MIT.txt'],
     ['app/core/catalog/winget-LICENSE.txt', 'WinGet-MIT.txt'],
+    ['app/core/catalog/homebrew-LICENSE.txt', 'Homebrew-BSD-2-Clause.txt'],
+    ['app/core/catalog/provider-NOTICE.md', 'Package-Catalogs.md'],
   ]) copyFileSync(path.join(repo, source), path.join(destination, filename));
 }
 
