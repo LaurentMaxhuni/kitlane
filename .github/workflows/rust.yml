@@ -31,6 +31,8 @@ jobs:
       - name: Rust toolchain
         run: rustup toolchain install 1.97.1 --profile minimal --component rustfmt --component clippy
       - run: cargo +1.97.1 fmt --all --check
+      - name: Package catalog importer tests
+        run: python -m unittest discover -s tools/tests
       - run: cargo +1.97.1 test --workspace --locked
       - run: cargo +1.97.1 clippy --workspace --all-targets --locked -- -D warnings
       - name: Windows installer compiler
