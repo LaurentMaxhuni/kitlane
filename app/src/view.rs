@@ -741,8 +741,8 @@ impl KitlaneApp {
         }
         ui.add_space(12.0);
         ui.collapsing("About availability & scan coverage", |ui| {
-            caption(ui, "OS availability uses reviewed vendor evidence. CPU and OS-version compatibility are not checked yet.", p);
-            caption(ui, "Matches use curated metadata or WinGet product identifiers. A match does not verify executable identity or OS availability.", p);
+            caption(ui, "OS availability uses vendor evidence and WinGet, Homebrew or Flathub package listings. CPU and OS-version compatibility are not checked yet.", p);
+            caption(ui, "Exact package identifiers cross-reference apps across OSes. Catalog snapshots work offline; missing or ambiguous metadata stays unknown. Community packaging does not establish official vendor support or verify the installed binary.", p);
             for warning in &snapshot.warnings { caption(ui, warning, p); }
         });
     }
