@@ -7,6 +7,7 @@ from collections import defaultdict
 from datetime import date, datetime, timezone
 import hashlib
 import json
+import re
 from pathlib import Path
 import sqlite3
 import tempfile
@@ -15,6 +16,13 @@ import zipfile
 SOURCE = "https://cdn.winget.microsoft.com/cache/source2.msix"
 MAX_SOURCE_BYTES = 64 * 1024 * 1024
 MAX_OUTPUT_BYTES = 32 * 1024 * 1024
+
+
+def metadata_key(value):
+    if not valid_text(value, 512) or not value.isascii():
+        return None
+    key = re.sub(r'[^a-z0-9+#@]', '', value.lower())
+    return key or None
 
 
 def valid_text(value, limit):
@@ -52,18 +60,41 @@ def build_index(connection, source_hash, generated_on):
     # Windows registry key comparison is case insensitive. Ambiguous codes never match.
     unique = {code: next(iter(ids)) for code, ids in owners.items()
               if len(ids) == 1 and next(iter(ids)) in packages}
-    used = sorted(set(unique.values()), key=lambda key: packages[key][0])
+    names, publishers = defaultdict(set), defaultdict(set)
+    for table, column, target in [('norm_names2', 'norm_name', names),
+                                  ('norm_publishers2', 'norm_publisher', publishers)]:
+        for count, (value, rowid) in enumerate(connection.execute(f'SELECT {column}, package FROM {table}')):
+            if count >= 500_000:
+                raise ValueError('Metadata row limit exceeded')
+            key = metadata_key(value)
+            if key:
+                target[rowid].add(key)
+                if len(target[rowid]) > 4096:
+                    raise ValueError('Metadata alias limit exceeded')
+    pair_owners = defaultdict(set)
+    count = 0
+    for rowid in names.keys() & publishers.keys():
+        for name in names[rowid]:
+            for publisher in publishers[rowid]:
+                count += 1
+                if count > 500_000:
+                    raise ValueError('Metadata pair limit exceeded')
+                pair_owners[(name, publisher)].add(rowid)
+    pairs = {pair: next(iter(ids)) for pair, ids in pair_owners.items()
+             if len(ids) == 1 and next(iter(ids)) in packages}
+    used = sorted(packages, key=lambda key: packages[key][0])
     positions = {key: index for index, key in enumerate(used)}
     if not unique:
         raise ValueError("No unambiguous product codes")
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "source_url": SOURCE,
         "source_sha256": source_hash,
         "source_updated_on": str(updated),
         "generated_on": str(generated),
         "packages": [packages[key] for key in used],
         "codes": [(code, positions[key]) for code, key in sorted(unique.items())],
+        "pairs": [(name, publisher, positions[key]) for (name, publisher), key in sorted(pairs.items())],
     }
 
 
@@ -85,7 +116,7 @@ def generate(source, output, generated_on):
         finally:
             connection.close()
     # Stable ordering makes refreshes reviewable. Replace only after complete validation.
-    arrays = {key: index.pop(key) for key in ("packages", "codes")}
+    arrays = {key: index.pop(key) for key in ("packages", "codes", "pairs")}
     parts = [json.dumps(index, indent=2, ensure_ascii=False)[:-2]]
     for key, rows in arrays.items():
         parts.append(f',\n  "{key}": [\n')
@@ -104,7 +135,7 @@ def generate(source, output, generated_on):
         finally:
             temporary.unlink(missing_ok=True)
     print(f"{len(arrays['packages'])} packages; {len(arrays['codes'])} exact codes; "
-          f"{len(payload)} bytes; source SHA-256 {source_hash}")
+          f"{len(arrays['pairs'])} metadata pairs; {len(payload)} bytes; source SHA-256 {source_hash}")
 
 
 if __name__ == "__main__":

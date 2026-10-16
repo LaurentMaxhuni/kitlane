@@ -20,12 +20,24 @@ class ImportTests(unittest.TestCase):
             INSERT INTO packages VALUES (1,'Example.App','Example'), (2,'Other.App','Other');
             CREATE TABLE productcodes2(productcode TEXT, package INTEGER);
             INSERT INTO productcodes2 VALUES ('Example_is1',1), ('shared',1), ('SHARED',2);
+            CREATE TABLE norm_names2(norm_name TEXT, package INTEGER);
+            CREATE TABLE norm_publishers2(norm_publisher TEXT, package INTEGER);
+            INSERT INTO norm_names2 VALUES ('example',1), ('other',2);
+            INSERT INTO norm_publishers2 VALUES ('vendor',1), ('vendor',2);
         """)
 
     def test_exact_codes_are_sorted_and_ambiguous_case_variants_are_omitted(self):
         index = importer["build_index"](self.database, "0" * 64, "2026-10-15")
-        self.assertEqual(index["packages"], [("Example.App", "Example")])
+        self.assertEqual(index["packages"], [("Example.App", "Example"), ("Other.App", "Other")])
         self.assertEqual(index["codes"], [("example_is1", 0)])
+
+    def test_name_and_publisher_pairs_are_exact_and_ambiguous_pairs_are_excluded(self):
+        index = importer['build_index'](self.database, '0' * 64, '2026-10-16')
+        self.assertIn(('example', 'vendor', 0), index['pairs'])
+        self.database.execute("INSERT INTO norm_names2 VALUES ('example',2)")
+        index = importer['build_index'](self.database, '0' * 64, '2026-10-16')
+        self.assertNotIn(('example', 'vendor', 0), index['pairs'])
+        self.assertNotIn(('example', 'vendor', 1), index['pairs'])
 
     def test_invalid_packages_cannot_hide_product_code_ambiguity(self):
         self.database.execute("UPDATE packages SET name = '' WHERE rowid = 2")
