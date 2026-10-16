@@ -7,7 +7,7 @@ import downloads from '../api/download.js';
 const root = await realpath(fileURLToPath(new URL('../', import.meta.url)));
 const port = Number(process.env.PORT || 4174);
 const types = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.ttf': 'font/ttf', '.txt': 'text/plain; charset=utf-8', '.md': 'text/plain; charset=utf-8' };
-const allowed = ['index.html', 'download', 'styles.css', 'site.js', 'assets'];
+const allowed = ['index.html', 'download', 'styles.css', 'site.js', 'theme.js', 'assets'];
 const server = http.createServer(async (req, res) => {
   if (!['GET', 'HEAD'].includes(req.method)) { res.writeHead(405, { Allow: 'GET, HEAD' }).end(); return; }
   try {
