@@ -1,12 +1,8 @@
 # Catalog evidence
 
-Reviewed 2026-10-11. Bundled metadata only; no runtime network, installer URLs, package commands, provider IDs or automatic installation. Canonical IDs are internal Kitlane IDs.
+Current package-manager matching and refresh instructions are documented in [Package catalogs](package-catalogs.md). The 2026-10-16 expansion adds Homebrew/Flathub associations and conservative WinGet name/publisher matching alongside exact uninstall codes. Package listings establish OS-family availability, with source links and requirements notes; they do not verify binaries, official maintenance or device compatibility. Curated vendor restrictions take precedence over community packages.
 
-Expanded 2026-10-15 to 15 curated products and 19 exact Windows name/publisher pairs, plus a generated WinGet index of 8,174 packages with 106,491 unambiguous product identifiers. Curated entries retain reviewed official OS availability; provider-only matches keep availability unknown. macOS bundle matching still covers VLC only. Linux inventory associations remain unknown.
-
-A match means **catalog association from source metadata**. Registry display names, publishers and bundle identifiers can be forged. Matching does not verify binary publisher identity, package origin, executable signatures or safe-install authorization. Availability means an official native product exists for the OS family. It does not establish compatibility with a device's architecture, OS version, distribution, license or deployment environment.
-
-`WindowsRegistry` observations first use exact, case-sensitive curated display-name/publisher pairs. Otherwise a recognized uninstall subkey can associate with an exact WinGet product identifier, using ASCII case-insensitive registry-key comparison. Display-name versions and suffixes are never stripped. A publisher must still be present; it remains observed metadata. `MacosBundle` observations require an exact reviewed bundle identifier. Version, scope, registry key and package origin do not verify executable identity. Manual entries, Flatpak metadata, missing required identifiers and ambiguous identifiers remain unknown. Identity unknown never means Windows-only.
+The records below document the original vendor-reviewed catalog and earlier snapshots. Historical statements about unmatched macOS/Flatpak apps or provider-only availability are superseded by the package catalog expansion.
 
 | Product | Exact reviewed registry pairs | Native availability |
 | --- | --- | --- |
@@ -26,7 +22,7 @@ A match means **catalog association from source metadata**. Registry display nam
 | Obsidian | `Obsidian`; publisher `Obsidian` | Windows, macOS, Linux available |
 | GitHub Desktop | `GitHub Desktop`; publisher `GitHub, Inc.` | Windows, macOS available; official Linux product unavailable |
 
-## WinGet index and refresh
+## Historical WinGet import (2026-10-15)
 
 The build bundles a compact import of Microsoft's [WinGet source index](https://cdn.winget.microsoft.com/cache/source2.msix), with no runtime download, package-manager dependency, executable invocation, installation or source-agreement acceptance. The upstream source has 15,645 package records; only packages with unambiguous, valid product codes are imported. Exact registration identifiers cover MSI GUIDs and named uninstall keys, including historical versions retained upstream. Shared codes across different packages, malformed metadata and unsupported index schemas are excluded or rejected. Name similarity and publisher normalization are not used.
 
