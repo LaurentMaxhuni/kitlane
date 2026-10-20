@@ -220,6 +220,14 @@ impl KitlaneApp {
         if matches!(state, "automation" | "alternatives") {
             app.features.focus_preview = true;
         }
+        if state == "ai-settings" {
+            app.features.focus_ai_settings = true;
+        }
+        if state == "filtered" {
+            app.query = "figma".into();
+            app.library_filter = LibraryFilter::Unknown;
+            app.filter_rows();
+        }
         app
     }
 

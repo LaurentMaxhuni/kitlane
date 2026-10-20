@@ -33,7 +33,7 @@ mod preview {
         time::{Duration, Instant},
     };
 
-    const USAGE: &str = "ui-preview --page library|devices|settings|welcome|appearance|setup-device|setup-review|pair-service|pair-consent|pair-review|pair-done --theme light|dark --state normal|empty|loading|error|long|reduced|details --width 480..4096 --height 360..2160 --output ABSOLUTE.png";
+    const USAGE: &str = "ui-preview --page library|devices|settings|welcome|appearance|setup-device|setup-review|pair-service|pair-consent|pair-review|pair-done|sign-in --theme light|dark --state normal|empty|loading|error|long|reduced|details|automation|alternatives|ai-settings|filtered --width 480..4096 --height 360..2160 --output ABSOLUTE.png";
     const TIMEOUT: Duration = Duration::from_secs(15);
 
     #[derive(Debug, PartialEq)]
@@ -106,9 +106,11 @@ mod preview {
                     | "details"
                     | "automation"
                     | "alternatives"
+                    | "ai-settings"
+                    | "filtered"
             ) {
                 return Err(
-                    "State must be normal, empty, loading, error, long, reduced, details, automation, or alternatives".into(),
+                    "State must be normal, empty, loading, error, long, reduced, details, automation, alternatives, ai-settings, or filtered".into(),
                 );
             }
             let dimension = |value: OsString, name: &str, min: u32, max: u32| {
@@ -276,7 +278,15 @@ mod preview {
         fn accepts_every_page_theme_and_state() {
             for (page, index) in [("library", 0), ("devices", 1), ("settings", 2)] {
                 for theme in ["light", "dark"] {
-                    for state in ["normal", "empty", "loading", "error", "long"] {
+                    for state in [
+                        "normal",
+                        "empty",
+                        "loading",
+                        "error",
+                        "long",
+                        "ai-settings",
+                        "filtered",
+                    ] {
                         let mut args = args();
                         args[1] = page.into();
                         args[3] = theme.into();

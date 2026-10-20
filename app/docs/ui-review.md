@@ -29,6 +29,8 @@ Keep earlier screenshots as a baseline and compare at matching page/theme/state/
 
 Run parser validation with `cargo test --bin ui-preview preview::tests`. Capture generation does not prove production actions work: test keyboard traversal, text input, cancellation, vault locking, and normal scan/sync behavior separately with disposable data. Never use screenshots containing real device identities, installed software, credentials, or vault material as review fixtures.
 
+Additional states: `automation` scrolls Settings to automatic updates, `alternatives` opens the Library comparison form, `ai-settings` reveals the Settings API-key form, and `filtered` shows a search with no results in the active Library filter.
+
 API references: cached egui 0.36.2 `viewport.rs` defines `ViewportCommand::Screenshot(UserData)`; `data/input/event.rs` returns `Event::Screenshot { viewport_id, user_data, image }`. eframe 0.36.2 `epi.rs` defines `App::logic` and `App::ui`.
 
 ## Redesign validation — 2026-10-11
@@ -38,3 +40,11 @@ Reviewed native Windows captures of Library, Devices, and Settings in both theme
 Workspace tests cover all pages/themes at three widths, idle repaint behavior, keyboard navigation, appearance selection, and inventory search. Production Windows executable receives a separate launch/close smoke check with disposable local storage. macOS/Linux visual validation and live credential-store tests remain outside this Windows review.
 
 Added `egui_extras` for bundled SVG loaders/native tables and `image` for PNG loading/captures. Initial production window size is 1200×780; minimum remains 480×360. No production environment variables or sync defaults changed. Installation, automatic updates, and AI alternatives remain unavailable in this milestone.
+
+## Controls and Settings review — 2026-10-20
+
+Reviewed native Windows fixture captures of appearance choices, setup inputs, pairing, Settings, automatic-update selection, AI forms, and Library search recovery. Captures cover light/dark themes and requested widths of 480, 900, 1000, and 1440; Windows display scaling can change the output pixel dimensions. Before/after images are under ignored `target/ui-previews/`.
+
+Appearance radio cards now accept clicks across their whole surface, expose their selected radio state to accessibility, and support keyboard activation. A regression test reproduced ignored clicks in card padding before the fix and verifies mouse and Space activation afterward. AI forms use the shared square checkboxes and padded, labelled inputs. Library search has an explicit label, a focus outline, and a reset action for empty filtered results. Settings groups appearance and motion, library preferences, updates, AI, and account/privacy; update selection has a bounded scroll area and activity uses readable status labels.
+
+Workspace tests, formatting, and Clippy with warnings denied passed on Windows. Fixture rendering disables worker-dependent actions; live AI requests, installing updates, and account changes were not exercised in this visual pass. Interactive macOS/Linux review remains pending.

@@ -1,8 +1,8 @@
-use super::view::{caption, card};
+use super::view::{caption, card, primary};
 use super::*;
 use crate::theme;
 use kitlane_core::{
-    maintenance::{MaintenanceAction, MaintenanceState, ProgramPolicy},
+    maintenance::{JobStatus, MaintenanceAction, MaintenanceState, ProgramPolicy},
     model::InstalledApp,
     suggestions::{Preferences, Suggestion},
 };
@@ -213,6 +213,7 @@ pub(super) struct Features {
     _ui_lock: Option<File>,
     initialized: bool,
     rescan_needed: bool,
+    pub(super) focus_ai_settings: bool,
     #[cfg(debug_assertions)]
     pub(super) focus_preview: bool,
 }
@@ -326,54 +327,71 @@ impl KitlaneApp {
         }
         card(p).show(ui, |ui| {
             ui.set_min_width(ui.available_width());
-            ui.heading("Automatic updates");
+            ui.label(egui::RichText::new("Automatic updates").size(18.0));
             caption(ui, "Choose apps below to update them in the background, including after Kitlane closes. New agreements, pins and restarts need your attention.", p);
-            ui.label(format!("Kitlane {}", env!("CARGO_PKG_VERSION")));
+            ui.add_space(12.0);
+            ui.label(egui::RichText::new(format!("Kitlane {}", env!("CARGO_PKG_VERSION"))).strong());
             let supported = cfg!(all(windows, target_arch = "x86_64"));
             let self_updates_ready = crate::self_update::signing_configured();
             if !supported { caption(ui, "Automatic updates are currently available on Windows x64. Other platforms require manual updates.", p); }
             let mut kitlane = self.features.state.kitlane_auto_update;
-            if ui.add_enabled(supported && self_updates_ready && self.features.worker.is_some(), egui::Checkbox::new(&mut kitlane, "Keep Kitlane up to date")).changed()
+            if ui.add_enabled_ui(supported && self_updates_ready && self.features.worker.is_some() && self.device.is_some(), |ui| theme::toggle(ui, &mut kitlane, "Keep Kitlane up to date")).inner.changed()
                 && let Some(device) = self.device.clone()
                 && self.features.send(FeatureCommand::Policy { device, programs: self.features.state.programs.clone(), kitlane }) {
                 self.features.state.kitlane_auto_update = kitlane;
             }
-            if !self_updates_ready { caption(ui, "Kitlane self-updates are awaiting trusted release-signing setup.", p); }
+            if !self_updates_ready { caption(ui, "Automatic Kitlane updates aren't available yet. You can still install new releases manually.", p); }
             caption(ui, "Kitlane installs signed updates after its window closes. Automatic checks run about every six hours.", p);
             ui.horizontal_wrapped(|ui| {
-                if ui.add_enabled(supported && self.features.worker.is_some(), egui::Button::new("Check Kitlane now")).clicked() { self.features.send(FeatureCommand::Queue(MaintenanceAction::CheckKitlane)); }
-                if ui.add_enabled(supported && !self.features.state.programs.is_empty() && self.features.worker.is_some(), egui::Button::new("Check selected apps")).clicked() { self.features.send(FeatureCommand::Queue(MaintenanceAction::CheckPrograms)); }
+                if ui.add_enabled(supported && self_updates_ready && self.features.worker.is_some(), egui::Button::new("Check Kitlane now")).clicked() { self.features.send(FeatureCommand::Queue(MaintenanceAction::CheckKitlane)); }
             });
-            caption(ui, &self.features.state.agent_status, p);
+            ui.add_space(16.0);
+            ui.separator();
+            ui.add_space(8.0);
+            let selected_count = self.features.state.programs.iter().filter(|policy| policy.enabled).count();
+            ui.label(egui::RichText::new(format!("Installed apps · {selected_count} selected")).strong());
             if let Some(snapshot) = self.snapshot.clone() {
-                ui.collapsing("Choose apps for automatic updates", |ui| {
+                egui::CollapsingHeader::new("Choose apps for automatic updates").default_open(true).show(ui, |ui| {
+                    egui::ScrollArea::vertical().id_salt("automatic-update-apps").max_height(220.0).min_scrolled_height(180.0).animated(!self.settings.reduced_motion).show(ui, |ui| {
                     let mut any = false;
                     for (app, matched) in snapshot.apps.iter().zip(&self.matches) {
                         let MatchOutcome::Matched(product) = matched else { continue; };
                         let Some(winget_id) = &product.winget_id else { continue; };
                         any = true;
                         let mut enabled = self.features.state.programs.iter().any(|policy| policy.app_id == app.id && policy.winget_id == *winget_id && policy.enabled);
-                        if ui.add_enabled(supported && self.features.worker.is_some(), egui::Checkbox::new(&mut enabled, &app.name)).changed() {
+                        ui.push_id(&app.id, |ui| {
+                        if ui.add_enabled_ui(supported && self.features.worker.is_some(), |ui| theme::toggle(ui, &mut enabled, &app.name)).inner.changed() {
                             let mut programs = self.features.state.programs.clone();
                             programs.retain(|policy| policy.app_id != app.id);
                             programs.push(ProgramPolicy { app_id: app.id.clone(), winget_id: winget_id.clone(), display_name: app.name.clone(), enabled });
                             if self.features.send(FeatureCommand::Policy { device: snapshot.device.clone(), programs: programs.clone(), kitlane: self.features.state.kitlane_auto_update }) { self.features.state.programs = programs; }
                         }
+                        });
                     }
                     if !any { ui.label("Rescan your library to find supported program identifiers."); }
+                    });
                 });
+            } else {
+                caption(ui, "Refresh your Library to choose apps for automatic updates.", p);
             }
+            let can_check = supported && selected_count > 0 && self.features.worker.is_some();
+            if ui.add_enabled(can_check, primary("Check selected apps", p, can_check)).clicked() {
+                self.features.send(FeatureCommand::Queue(MaintenanceAction::CheckPrograms));
+            }
+            if selected_count == 0 { caption(ui, "Select at least one app above to enable background updates.", p); }
+            caption(ui, format!("Background updates: {}", self.features.state.agent_status), p);
+            ui.add_space(8.0);
             ui.collapsing("Update activity", |ui| {
                 if self.features.state.jobs.is_empty() { ui.label("No update jobs yet."); }
                 for job in self.features.state.jobs.clone().into_iter().rev().take(12) {
-                    ui.collapsing(format!("{} · {:?}", job.display_name, job.status), |ui| {
+                    egui::CollapsingHeader::new(egui::RichText::new(format!("{} · {}", job.display_name, job_status_label(job.status))).color(job_status_color(job.status, p))).id_salt(&job.id).show(ui, |ui| {
                         ui.label(&job.outcome);
                         if let Some(version) = &job.old_version { ui.label(format!("Previous version: {version}")); }
                         if let Some(version) = &job.new_version { ui.label(format!("Result version: {version}")); }
                         caption(ui, &job.provenance, p);
                         if job.status == kitlane_core::maintenance::JobStatus::Indeterminate {
                             caption(ui, "Check this app and any installer still running before allowing another attempt.", p);
-                            if ui.button("I reviewed this interruption; allow a fresh check").clicked() {
+                            if ui.button("I've checked the app; allow a fresh check").clicked() {
                                 self.features.send(FeatureCommand::Acknowledge(job.id.clone()));
                             }
                         }
@@ -382,18 +400,24 @@ impl KitlaneApp {
             });
         });
         ui.add_space(16.0);
+        if std::mem::take(&mut self.features.focus_ai_settings) {
+            ui.scroll_to_cursor(Some(egui::Align::Min));
+        }
         card(p).show(ui, |ui| {
             ui.set_min_width(ui.available_width());
-            ui.heading("AI recommendations");
+            ui.label(egui::RichText::new("AI recommendations").size(18.0));
             caption(ui, "Open an app's details in your Library to compare alternatives for your workflow. Each request sends only that app, your requirements and relevant candidate facts to TypeSafe.", p);
-            ui.label(if self.features.configured { "API key available" } else { "Add your TypeSafe API key to enable suggestions" });
-            ui.add(egui::TextEdit::singleline(&mut self.features.key_input).password(true).hint_text("TypeSafe API key").desired_width(f32::INFINITY).char_limit(4096));
+            ui.add_space(12.0);
+            ui.colored_label(if self.features.configured { p.success_text } else { p.muted }, if self.features.configured { "Ready to compare alternatives" } else { "API key required" });
+            let label = ui.label("TypeSafe API key");
+            theme::input(ui, &mut self.features.key_input, if self.features.configured { "Enter a replacement key" } else { "Enter your API key" }, true, 4096).labelled_by(label.id);
             ui.horizontal_wrapped(|ui| {
-                if ui.add_enabled(!self.features.key_input.trim().is_empty() && self.features.worker.is_some(), egui::Button::new("Save key securely")).clicked() {
+                let can_save = !self.features.key_input.trim().is_empty() && self.features.worker.is_some();
+                if ui.add_enabled(can_save, primary("Save key securely", p, can_save)).clicked() {
                     let key = zeroize::Zeroizing::new(std::mem::take(&mut self.features.key_input));
                     self.features.send(FeatureCommand::SaveKey(key));
                 }
-                if ui.add_enabled(self.features.worker.is_some(), egui::Button::new("Forget saved key")).clicked() { self.features.send(FeatureCommand::ForgetKey); }
+                if ui.add_enabled(self.features.configured && self.features.worker.is_some(), egui::Button::new("Forget saved key")).clicked() { self.features.send(FeatureCommand::ForgetKey); }
             });
             caption(ui, "Saved keys stay in your operating system's credential store. A key supplied by your environment remains available after Forget.", p);
         });
@@ -412,7 +436,9 @@ impl KitlaneApp {
         }
         card(p).show(ui, |ui| {
             ui.set_min_width(ui.available_width());
-            ui.heading("Find an alternative");
+            ui.label(egui::RichText::new("Find an alternative").size(18.0).strong());
+            caption(ui, "Compare apps for your workflow. Review the results before saving a preference.", p);
+            ui.add_space(12.0);
             let mut platform = self.features.target_platform.unwrap_or_else(|| self.device.as_ref().map_or(Platform::Windows, |device| device.platform));
             let original_platform = platform;
             let changed = ui.add_enabled_ui(!self.features.ai_busy, |ui| {
@@ -424,17 +450,28 @@ impl KitlaneApp {
                 });
                 let mut changed = false;
                 ui.horizontal_wrapped(|ui| {
-                    changed |= ui.checkbox(&mut self.features.preferences.free_only, "Free options only").changed();
-                    changed |= ui.checkbox(&mut self.features.preferences.open_source_only, "Open source only").changed();
+                    changed |= theme::toggle(ui, &mut self.features.preferences.free_only, "Free options only").changed();
+                    changed |= theme::toggle(ui, &mut self.features.preferences.open_source_only, "Open source only").changed();
                 });
-                changed |= ui.add(egui::TextEdit::multiline(&mut self.features.preferences.priorities).hint_text("What matters to your workflow?").desired_rows(2).desired_width(f32::INFINITY).char_limit(1000)).changed();
+                let label = ui.label("What matters to your workflow? (optional)");
+                changed |= ui.add(egui::TextEdit::multiline(&mut self.features.preferences.priorities).hint_text("For example, offline access and collaboration").margin(egui::Margin::same(12)).desired_rows(3).desired_width(f32::INFINITY).char_limit(1000)).labelled_by(label.id).changed();
                 changed
             }).inner;
             self.features.target_platform = Some(platform);
             if changed || platform != original_platform { self.features.suggestions.clear(); self.features.suggestion_for = None; }
-            ui.checkbox(&mut self.features.consent, "Send this app and my requirements to TypeSafe for comparison");
-            if !self.features.configured { caption(ui, "Configure your TypeSafe key in Settings first.", p); }
-            if ui.add_enabled(self.features.worker.is_some() && self.features.configured && self.features.consent && !self.features.ai_busy, egui::Button::new(if self.features.ai_busy { "Comparing alternatives…" } else { "Find alternatives" })).clicked()
+            ui.add_space(8.0);
+            theme::toggle(ui, &mut self.features.consent, "Send this app and my requirements to TypeSafe for comparison");
+            if !self.features.configured {
+                caption(ui, "Add a TypeSafe API key to enable comparisons.", p);
+                if ui.button("Open AI settings").clicked() {
+                    self.features.focus_ai_settings = true;
+                    self.page = Page::Settings;
+                }
+            } else if !self.features.consent {
+                caption(ui, "Allow sharing above to enable this comparison.", p);
+            }
+            let can_compare = self.features.worker.is_some() && self.features.configured && self.features.consent && !self.features.ai_busy;
+            if ui.add_enabled(can_compare, primary(if self.features.ai_busy { "Comparing alternatives…" } else { "Find alternatives" }, p, can_compare)).clicked()
                 && self.features.send(FeatureCommand::Suggest { app: app.clone(), preferences: self.features.preferences.clone(), platform }) {
                 self.features.ai_busy = true; self.features.suggestions.clear(); self.features.suggestion_for = Some(app.id.clone()); self.features.message = None;
             }
@@ -477,7 +514,7 @@ impl KitlaneApp {
         if ui
             .add_enabled(
                 cfg!(all(windows, target_arch = "x86_64")) && self.features.worker.is_some(),
-                egui::Button::new("Check and update this installed app"),
+                egui::Button::new("Check and update app"),
             )
             .clicked()
             && let Some(device) = self.device.clone()
@@ -500,7 +537,34 @@ impl KitlaneApp {
             .rev()
             .find(|job| job.winget_id.as_ref() == Some(&winget_id))
         {
-            ui.label(format!("Update status: {:?} · {}", job.status, job.outcome));
+            ui.colored_label(
+                job_status_color(job.status, theme::palette(self.dark)),
+                format!("{} · {}", job_status_label(job.status), job.outcome),
+            );
         }
+    }
+}
+
+fn job_status_label(status: JobStatus) -> &'static str {
+    match status {
+        JobStatus::Queued => "Waiting to start",
+        JobStatus::Running => "In progress",
+        JobStatus::Current => "Up to date",
+        JobStatus::Available => "Update available",
+        JobStatus::Succeeded => "Completed",
+        JobStatus::Deferred => "Waiting to retry",
+        JobStatus::Failed => "Couldn't complete",
+        JobStatus::Unsupported => "Not supported",
+        JobStatus::Indeterminate => "Needs your review",
+        JobStatus::Cancelled => "Cancelled",
+    }
+}
+
+fn job_status_color(status: JobStatus, p: &theme::Palette) -> egui::Color32 {
+    match status {
+        JobStatus::Current | JobStatus::Succeeded => p.success_text,
+        JobStatus::Failed => p.danger_text,
+        JobStatus::Indeterminate | JobStatus::Deferred => p.warning_text,
+        _ => p.text,
     }
 }

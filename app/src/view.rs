@@ -327,37 +327,24 @@ impl KitlaneApp {
 
     fn library_view(&mut self, ui: &mut egui::Ui, height: f32) {
         let p = theme::palette(self.dark);
-        ui.horizontal(|ui| {
-            ui.vertical(|ui| {
-                caption(ui, "YOUR WORKSPACE", p);
-                ui.heading("Your library");
-                ui.label(
-                    RichText::new("Your tools. One place to keep them together.").color(p.muted),
-                );
+        let heading = |ui: &mut egui::Ui| {
+            caption(ui, "YOUR WORKSPACE", p);
+            ui.heading("Your library");
+            ui.label(RichText::new("Your tools. One place to keep them together.").color(p.muted));
+        };
+        if ui.available_width() < 580.0 {
+            heading(ui);
+            ui.add_space(12.0);
+            self.refresh_library_button(ui, p);
+        } else {
+            ui.horizontal(|ui| {
+                ui.vertical(heading);
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.set_min_width(ui.available_width());
+                    self.refresh_library_button(ui, p);
+                });
             });
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                ui.set_min_width(ui.available_width());
-                let enabled = !self.scanning && self.worker.is_some();
-                let color = if enabled { p.action_text } else { p.muted };
-                let button = egui::Button::image_and_text(
-                    theme::icon_image(Icon::Refresh, 16.0, color),
-                    RichText::new("Refresh library").color(color),
-                )
-                .fill(if enabled { p.action } else { p.surface_raised })
-                .stroke(if enabled {
-                    Stroke::NONE
-                } else {
-                    Stroke::new(1.0, p.border)
-                })
-                .min_size(Vec2::new(148.0, 42.0));
-                if ui
-                    .add_enabled(!self.scanning && self.worker.is_some(), button)
-                    .clicked()
-                {
-                    self.scan();
-                }
-            });
-        });
+        }
         ui.add_space(28.0);
         let count = self
             .snapshot
@@ -436,38 +423,53 @@ impl KitlaneApp {
             });
         });
         ui.add_space(24.0);
-        ui.horizontal(|ui| {
-            Frame::new()
-                .fill(p.surface)
-                .stroke(Stroke::new(1.0, p.border))
-                .corner_radius(8)
-                .inner_margin(Margin::symmetric(12, 7))
-                .show(ui, |ui| {
-                    ui.horizontal(|ui| {
-                        theme::icon(ui, Icon::Search, 18.0, p.muted);
-                        if ui
+        let search_label = ui.label(RichText::new("Search library").size(12.0).color(p.muted));
+        let search = Frame::new()
+            .fill(p.surface)
+            .stroke(Stroke::new(1.0, p.border))
+            .corner_radius(8)
+            .inner_margin(Margin::symmetric(12, 7))
+            .show(ui, |ui| {
+                ui.set_width(ui.available_width());
+                ui.horizontal(|ui| {
+                    theme::icon(ui, Icon::Search, 18.0, p.muted);
+                    let reserve = if self.query.is_empty() { 0.0 } else { 72.0 };
+                    let response = ui
+                        .add_sized(
+                            [(ui.available_width() - reserve).max(60.0), 28.0],
+                            egui::TextEdit::singleline(&mut self.query)
+                                .frame(Frame::NONE)
+                                .hint_text("Search apps or publishers"),
+                        )
+                        .labelled_by(search_label.id);
+                    if response.changed() {
+                        self.filter_rows();
+                    }
+                    if !self.query.is_empty()
+                        && ui
                             .add(
-                                egui::TextEdit::singleline(&mut self.query)
-                                    .frame(Frame::NONE)
-                                    .desired_width((ui.available_width() - 130.0).max(150.0))
-                                    .hint_text("Search apps or publishers"),
+                                egui::Button::new("Clear")
+                                    .small()
+                                    .min_size(Vec2::new(60.0, 28.0)),
                             )
-                            .changed()
-                        {
-                            self.filter_rows();
-                        }
-                    });
-                });
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                ui.set_min_width(ui.available_width());
-                if self.scanning {
-                    theme::activity(ui);
-                    ui.label(RichText::new("Scanning…").size(12.0).color(p.muted));
-                } else {
-                    caption(ui, format!("{} apps shown", self.rows.len()), p);
-                }
+                            .clicked()
+                    {
+                        self.query.clear();
+                        self.filter_rows();
+                        response.request_focus();
+                    }
+                    response
+                })
+                .inner
             });
-        });
+        if search.inner.has_focus() {
+            ui.painter().rect_stroke(
+                search.response.rect,
+                8,
+                Stroke::new(2.0, p.focus),
+                egui::StrokeKind::Inside,
+            );
+        }
         ui.add_space(12.0);
         ui.horizontal_wrapped(|ui| {
             for (filter, label) in [
@@ -483,9 +485,11 @@ impl KitlaneApp {
                     self.filter_rows();
                 }
             }
-            if !self.query.is_empty() && ui.button("Clear search").clicked() {
-                self.query.clear();
-                self.filter_rows();
+            if self.scanning {
+                theme::activity(ui);
+                caption(ui, "Scanning…", p);
+            } else {
+                caption(ui, format!("{} of {count} apps", self.rows.len()), p);
             }
         });
         ui.add_space(12.0);
@@ -499,7 +503,7 @@ impl KitlaneApp {
             ui.add_space(8.0);
         }
         let Some(snapshot) = &self.snapshot else {
-            self.empty_library(
+            if self.empty_library(
                 ui,
                 p,
                 if self.scanning {
@@ -512,22 +516,27 @@ impl KitlaneApp {
                 } else {
                     "Refresh your library to see the applications on this computer."
                 },
-            );
+            ) {
+                self.query.clear();
+                self.library_filter = LibraryFilter::All;
+                self.filter_rows();
+            }
             return;
         };
+        let mut reset_filters = false;
         if self.rows.is_empty() {
-            self.empty_library(
+            reset_filters = self.empty_library(
                 ui,
                 p,
-                if self.query.is_empty() {
+                if self.query.trim().is_empty() && self.library_filter == LibraryFilter::All {
                     "No applications found"
                 } else {
                     "No matching applications"
                 },
-                if self.query.is_empty() {
+                if self.query.trim().is_empty() && self.library_filter == LibraryFilter::All {
                     "Check scan coverage below, then refresh to try again."
                 } else {
-                    "Try a different app name or publisher."
+                    "Try another search or reset your filters to see all apps."
                 },
             );
         } else {
@@ -745,9 +754,36 @@ impl KitlaneApp {
             caption(ui, "Exact package identifiers cross-reference apps across OSes. Catalog snapshots work offline; missing or ambiguous metadata stays unknown. Community packaging does not establish official vendor support or verify the installed binary.", p);
             for warning in &snapshot.warnings { caption(ui, warning, p); }
         });
+        if reset_filters {
+            self.query.clear();
+            self.library_filter = LibraryFilter::All;
+            self.filter_rows();
+        }
     }
 
-    fn empty_library(&self, ui: &mut egui::Ui, p: &Palette, heading: &str, detail: &str) {
+    fn refresh_library_button(&mut self, ui: &mut egui::Ui, p: &Palette) {
+        let enabled = !self.scanning && self.worker.is_some();
+        if ui
+            .add_enabled(
+                enabled,
+                primary(
+                    if self.scanning {
+                        "Scanning…"
+                    } else {
+                        "Refresh library"
+                    },
+                    p,
+                    enabled,
+                ),
+            )
+            .clicked()
+        {
+            self.scan();
+        }
+    }
+
+    fn empty_library(&self, ui: &mut egui::Ui, p: &Palette, heading: &str, detail: &str) -> bool {
+        let mut reset = false;
         card(p).show(ui, |ui| {
             ui.set_min_width(ui.available_width());
             ui.set_min_height(180.0);
@@ -757,39 +793,19 @@ impl KitlaneApp {
                 ui.add_space(12.0);
                 ui.label(RichText::new(heading).size(18.0));
                 ui.label(RichText::new(detail).color(p.muted));
+                if !self.query.is_empty() || self.library_filter != LibraryFilter::All {
+                    reset = ui.button("Reset filters").clicked();
+                }
             });
         });
+        reset
     }
 
     fn settings_view(&mut self, ui: &mut egui::Ui) {
         let p = theme::palette(self.dark);
         caption(ui, "YOUR WORKSPACE", p);
         ui.heading("Make it yours");
-        if let Some(account) = self.account.clone() {
-            ui.add_space(20.0);
-            card(p).show(ui, |ui| {
-                ui.set_min_width(ui.available_width());
-                ui.label(RichText::new("Google account").size(18.0));
-                ui.label(&account.email);
-                caption(ui, "Pair computers signed in to this account.", p);
-                ui.add_space(12.0);
-                if ui
-                    .add_enabled(self.worker.is_some(), egui::Button::new("Sign out"))
-                    .clicked()
-                    && let Some(worker) = &self.worker
-                {
-                    match worker.try_send(Command::SignOut) {
-                        Ok(()) => {
-                            self.clear_account();
-                            self.auth_busy = true;
-                        }
-                        Err(_) => self.error = Some("Sign-out could not start. Try again.".into()),
-                    }
-                }
-            });
-            ui.add_space(16.0);
-        }
-        ui.label(RichText::new("A few preferences for a calmer workspace.").color(p.muted));
+        ui.label(RichText::new("Appearance, library, updates, and your account.").color(p.muted));
         ui.add_space(24.0);
         card(p).show(ui, |ui| {
             ui.set_min_width(ui.available_width());
@@ -810,20 +826,27 @@ impl KitlaneApp {
                     }
                 }
             });
-        });
-        ui.add_space(16.0);
-        card(p).show(ui, |ui| { ui.set_min_width(ui.available_width());
-            ui.horizontal(|ui| { theme::icon(ui, Icon::Shield, 24.0, p.info_text); ui.label(RichText::new("You're in control").size(18.0)); });
-            ui.add_space(8.0);
-            ui.label("Inventory sharing happens only when you choose Sync now. Device credentials stay in your operating system's credential store.");
+            ui.add_space(12.0);
+            let mut reduced = self.settings.reduced_motion;
+            if theme::toggle(ui, &mut reduced, "Reduced motion").changed() {
+                self.save_preferences(
+                    AppSettings {
+                        reduced_motion: reduced,
+                        ..self.settings.clone()
+                    },
+                    ui.ctx(),
+                );
+            }
+            caption(
+                ui,
+                "Use instant transitions and static loading indicators.",
+                p,
+            );
         });
         ui.add_space(16.0);
         card(p).show(ui, |ui| {
             ui.set_min_width(ui.available_width());
             ui.label(RichText::new("Library preferences").size(18.0));
-            let mut reduced = self.settings.reduced_motion;
-            if theme::toggle(ui, &mut reduced, "Reduced motion").changed() { self.save_preferences(AppSettings { reduced_motion: reduced, ..self.settings.clone() }, ui.ctx()); }
-            caption(ui, "Use instant transitions and static loading indicators. Your choice is saved for this computer.", p);
             let mut scan = self.settings.scan_on_startup;
             if theme::toggle(ui, &mut scan, "Scan installed apps on launch").changed()
             {
@@ -840,6 +863,8 @@ impl KitlaneApp {
                     }
                 }
             }
+            caption(ui, "Read installed apps when Kitlane opens. You can also refresh from Library at any time.", p);
+            ui.add_space(12.0);
             if ui
                 .add_enabled(
                     !self.setup_busy && self.device.is_some(),
@@ -852,5 +877,23 @@ impl KitlaneApp {
             }
         });
         self.automation_settings(ui);
+        if let Some(account) = self.account.clone() {
+            ui.add_space(16.0);
+            card(p).show(ui, |ui| {
+                ui.set_min_width(ui.available_width());
+                ui.label(RichText::new("Account & privacy").size(18.0));
+                ui.add(egui::Label::new(&account.email).wrap());
+                caption(ui, "Pair computers signed in to this Google account. Inventory is shared only when you choose Sync now. Credentials stay in your operating system's credential store.", p);
+                ui.add_space(12.0);
+                if ui.add_enabled(self.worker.is_some(), egui::Button::new("Sign out")).clicked()
+                    && let Some(worker) = &self.worker
+                {
+                    match worker.try_send(Command::SignOut) {
+                        Ok(()) => { self.clear_account(); self.auth_busy = true; }
+                        Err(_) => self.error = Some("Sign-out could not start. Try again.".into()),
+                    }
+                }
+            });
+        }
     }
 }

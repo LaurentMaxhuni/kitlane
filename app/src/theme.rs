@@ -196,15 +196,17 @@ pub fn input(
     password: bool,
     limit: usize,
 ) -> Response {
-    ui.add_sized(
-        [ui.available_width(), 48.0],
+    let response = ui.add_sized(
+        [ui.available_width(), 44.0],
         egui::TextEdit::singleline(text)
             .hint_text(hint)
             .password(password)
             .char_limit(limit)
-            .margin(egui::Margin::symmetric(12, 12))
+            .margin(egui::Margin::symmetric(12, 11))
             .desired_width(f32::INFINITY),
-    )
+    );
+    feedback(ui, &response);
+    response
 }
 
 pub fn toggle(ui: &mut egui::Ui, checked: &mut bool, text: &str) -> Response {
@@ -226,29 +228,63 @@ pub fn toggle(ui: &mut egui::Ui, checked: &mut bool, text: &str) -> Response {
             widget.bg_stroke = Stroke::new(1.0, if selected { p.action } else { p.border });
             widget.fg_stroke = Stroke::new(2.0, if selected { p.action_text } else { p.muted });
         }
-        ui.checkbox(checked, text)
+        let response = ui.checkbox(checked, text);
+        feedback(ui, &response);
+        response
     })
     .inner
 }
 
 pub fn choice(ui: &mut egui::Ui, selected: bool, text: &str) -> Response {
     let p = palette(ui.visuals().dark_mode);
-    egui::Frame::new()
-        .fill(if selected {
-            p.selected
-        } else {
-            p.surface_raised
-        })
-        .stroke(Stroke::new(1.0, if selected { p.focus } else { p.border }))
-        .corner_radius(8)
-        .inner_margin(12)
-        .show(ui, |ui| {
-            ui.with_layout(egui::Layout::top_down(egui::Align::Min), |ui| {
-                ui.add_sized([116.0, 24.0], egui::RadioButton::new(selected, text))
-            })
-            .inner
-        })
-        .inner
+    let (rect, response) = ui.allocate_exact_size(egui::vec2(144.0, 56.0), egui::Sense::click());
+    response.widget_info(|| {
+        egui::WidgetInfo::selected(
+            egui::WidgetType::RadioButton,
+            ui.is_enabled(),
+            selected,
+            text,
+        )
+    });
+    if ui.is_rect_visible(rect) {
+        let highlighted = response.hovered() || response.has_focus();
+        ui.painter().rect(
+            rect,
+            8,
+            if selected || highlighted {
+                p.selected
+            } else {
+                p.surface
+            },
+            Stroke::new(
+                if response.has_focus() { 2.0 } else { 1.0 },
+                if selected || highlighted {
+                    p.focus
+                } else {
+                    p.border
+                },
+            ),
+            egui::StrokeKind::Inside,
+        );
+        let center = egui::pos2(rect.left() + 24.0, rect.center().y);
+        ui.painter().circle(
+            center,
+            9.0,
+            p.surface,
+            Stroke::new(1.5, if selected { p.focus } else { p.muted }),
+        );
+        if selected {
+            ui.painter().circle_filled(center, 4.5, p.info_text);
+        }
+        ui.painter().text(
+            egui::pos2(rect.left() + 44.0, rect.center().y),
+            egui::Align2::LEFT_CENTER,
+            text,
+            TextStyle::Button.resolve(ui.style()),
+            p.text,
+        );
+    }
+    response
 }
 
 #[derive(Clone, Copy)]
@@ -324,6 +360,56 @@ pub fn icon_image(kind: Icon, size: f32, color: Color32) -> egui::Image<'static>
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn appearance_choice_accepts_clicks_in_card_padding_and_keyboard_activation() {
+        let ctx = egui::Context::default();
+        apply(&ctx, false);
+        let draw = |input| {
+            let mut result = None;
+            let mut output = ctx.run_ui(input, |ui| {
+                let target = ui.next_widget_position() + egui::vec2(6.0, 6.0);
+                let response = choice(ui, false, "Dark");
+                result = Some((target, response.id, response.clicked()));
+            });
+            output.textures_delta.clear();
+            result.unwrap()
+        };
+        let (position, id, _) = draw(egui::RawInput::default());
+        // The inset of the visible card must be part of its hit target.
+        let mut clicked = false;
+        for pressed in [true, false] {
+            clicked = draw(egui::RawInput {
+                events: vec![
+                    egui::Event::PointerMoved(position),
+                    egui::Event::PointerButton {
+                        pos: position,
+                        button: egui::PointerButton::Primary,
+                        pressed,
+                        modifiers: Default::default(),
+                    },
+                ],
+                ..Default::default()
+            })
+            .2;
+        }
+        assert!(
+            clicked,
+            "The entire appearance card should select the option"
+        );
+        ctx.memory_mut(|memory| memory.request_focus(id));
+        let (_, _, clicked) = draw(egui::RawInput {
+            events: vec![egui::Event::Key {
+                key: egui::Key::Space,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers: Default::default(),
+            }],
+            ..Default::default()
+        });
+        assert!(clicked, "Radio choices must remain keyboard accessible");
+    }
 
     #[test]
     fn radio_choices_align_vertically() {
